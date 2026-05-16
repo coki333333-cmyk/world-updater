@@ -44,7 +44,6 @@ const defaultProfile = {
             correction_role: 'user',
             correction_order: 1,
             correction_content: 'Your last output:\n{{failed_output}}\n\nIs invalid. Please follow the rules and try again.',
-            advanced_save_script: "await context.executeSlashCommands('/echo ' + resultText);",
             blocks:[
                 { role: 'system', content: 'Extract the core Location Name and Character Names.\nRules:\n1. Location: Use the shortest specific name. No descriptions (e.g., no "The dark room of").\n2. Characters: List every character mentioned.\n3. Style: Strict Template. No talking.\n\nEXAMPLES:\nInput: "He walked through the busy streets of New York with Peter."\nResult:\n[New York]\n- Peter\n\nInput: "Inside the messy kitchen, Mary and John were cooking."\nResult:\n[Kitchen]\n- Mary\n- John\n\nInput: "The dragon flew over the Volcanic Mountains of Doom."\nResult:\n[Mountains of Doom]\n- Dragon', order: 128, isCode: false, history_filter: 'all', history_filter_name: '', history_exclude: '', run_condition_js: 'return true;' },
                 { role: 'user', content: 'Data to analyze:\n"""\n{{chat_history}}\n"""', order: 128, isCode: false, history_filter: 'all', history_filter_name: '', history_exclude: '', run_condition_js: 'return true;' }
@@ -318,7 +317,6 @@ function renderSteps() {
                             data-step="${activeIndex}" 
                             data-block="${origBIndex}" 
                             placeholder="Name1, Name2..." 
-                            value="${block.history_exclude || ''}"
                             style="flex: 1; padding: 0 5px; font-size: 0.85em; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1);">
                     </div>
                 </div>
@@ -335,7 +333,7 @@ function renderSteps() {
                         data-step="${activeIndex}" 
                         data-block="${origBIndex}" 
                         style="width: 100%; height: 60px; font-family: monospace; font-size: 0.8em; background: rgba(255, 204, 0, 0.05); color: #ffcc00; border: 1px solid rgba(255, 204, 0, 0.2);"
-                        placeholder="return lastMsg.mes.includes('<at>');">${block.run_condition_js || ''}</textarea>
+                        placeholder="return lastMsg.mes.includes('<at>');"></textarea>
                     <label style="font-size: 0.7em; color: #ffcc00; display: block; margin-bottom: 2px;">Then</label>
                 </div>
 
@@ -430,6 +428,18 @@ function renderSteps() {
         const s = $(this).data('step');
         const b = $(this).data('block');
         $(this).val(activeProfile.steps[s].blocks[b].content);
+    });
+
+    $('.wu_block_run_condition_js').each(function() {
+        const s = $(this).data('step');
+        const b = $(this).data('block');
+        $(this).val(activeProfile.steps[s].blocks[b].run_condition_js);
+    });
+
+    $('.wu_block_history_exclude').each(function() {
+        const s = $(this).data('step');
+        const b = $(this).data('block');
+        $(this).val(activeProfile.steps[s].blocks[b].history_exclude);
     });
 
     $('#wu_step_var_bottom').val(currentStep?.variable_name || '').attr('data-step', activeIndex);
@@ -552,8 +562,8 @@ function cleanAIResponse(text) {
 
 async function handleUpdate(abortSignal = null) {
     if (isUpdating) return; // it was not changing the button i guess
-    const isExternalAbort = !!abortSignal;
 
+    const isExternalAbort = !!abortSignal;
     if (!isExternalAbort) {
         abortController = new AbortController();
         abortSignal = abortController.signal;
@@ -601,7 +611,7 @@ async function handleUpdate(abortSignal = null) {
             let failedAttempts = [];
             const maxAttempts = step.max_attempts !== undefined ? parseInt(step.max_attempts) : 3;
 
-            for (let attempt = 0; maxAttempts === 0 || attempt <= maxAttempts; attempt++) {
+            for (let attempt = 0; maxAttempts === 0 || attempt < maxAttempts; attempt++) {
                 if (abortSignal.aborted) break;
 
                 const stContext = SillyTavern.getContext();
@@ -699,11 +709,7 @@ async function handleUpdate(abortSignal = null) {
                 const sortedBlocks = [...step.blocks]
                     .sort((a, b) => (a.order || 128) - (b.order || 128))
                     .filter((block) => {
-                        if (
-                            block.history_exclude &&
-                            block.history_exclude.trim() !== "" &&
-                            block.history_filter !== "condition"
-                        ) {
+                        if (block.history_exclude && block.history_exclude.trim() !== "" && block.history_filter !== "condition") {
                             const excludeList = block.history_exclude
                                 .split(",")
                                 .map((name) => name.trim().toLowerCase());
@@ -797,9 +803,8 @@ async function handleUpdate(abortSignal = null) {
                     }
                 }
 
-                const finalPrompt = textBlocks
-                    .map((block) => {
-                        let res = substituteParams(block.content);
+                const finalPrompt = (await Promise.all(textBlocks.map(async (block) => {
+                        let res = await substituteParams(block.content);
                         res = res
                             .replace(
                                 /{{chat_history(?:(?:::)([^}]+))?}}/g,
@@ -818,8 +823,7 @@ async function handleUpdate(abortSignal = null) {
                             );
 
                         return res;
-                    })
-                    .join("\n\n");
+                    }))).join("\n\n");
 
                 try {
                     resultText = "";
@@ -869,8 +873,8 @@ async function handleUpdate(abortSignal = null) {
                                 headers["Authorization"] =
                                     `Bearer ${activeProfile.api_key}`;
 
-                            const apiMessages = textBlocks.map((b) => {
-                                let res = substituteParams(b.content);
+                            const apiMessages = await Promise.all(textBlocks.map(async (b) => {
+                                let res = await substituteParams(b.content);
                                 res = res
                                     .replace(
                                         /{{chat_history(?:(?:::)([^}]+))?}}/g,
@@ -897,18 +901,13 @@ async function handleUpdate(abortSignal = null) {
                                     role: b.role,
                                     content: res,
                                 };
-                            });
+                            }));
 
-                            const lastBlock =
-                                apiMessages[apiMessages.length - 1];
-                            if (
-                                lastBlock?.role === "user" &&
-                                lastBlock.content.endsWith("Result:[")
-                            ) {
-                                lastBlock.content = lastBlock.content.replace(
-                                    "Result:[",
-                                    "Result:",
-                                );
+                            const lastBlock = apiMessages[apiMessages.length - 1];
+                            if (lastBlock?.role === "user" && lastBlock.content.trim().endsWith("Result:[")) {
+                                const content = lastBlock.content.trim();
+                                lastBlock.content = content.slice(0, -1) + ":";
+                                
                                 apiMessages.push({
                                     role: "assistant",
                                     content: "[",
@@ -948,6 +947,10 @@ async function handleUpdate(abortSignal = null) {
                                 },
                             );
 
+                            if (!response.ok) {
+                                throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+                            }
+
                             let rawText = "";
                             const reader = response.body.getReader();
                             const decoder = new TextDecoder("utf-8");
@@ -955,25 +958,20 @@ async function handleUpdate(abortSignal = null) {
                             while (true) {
                                 const { done, value } = await reader.read();
                                 if (done) {
-                                    if (
-                                        buffer.trim().startsWith("data: ") &&
-                                        buffer.trim() !== "data: [DONE]"
-                                    ) {
-                                        try {
-                                            const parsed = JSON.parse(
-                                                buffer.trim().substring(6),
-                                            );
-                                            if (
-                                                parsed.choices?.[0]?.delta
-                                                    ?.content
-                                            )
-                                                rawText +=
-                                                    parsed.choices[0].delta
-                                                        .content;
-                                            else if (parsed.results?.[0]?.text)
-                                                rawText +=
-                                                    parsed.results[0].text;
-                                        } catch (e) {}
+                                    if (buffer.trim()) {
+                                        const leftoverLines = buffer.split("\n");
+                                        for (const line of leftoverLines) {
+                                            if (line.trim().startsWith("data: ") && line.trim() !== "data: [DONE]") {
+                                                try {
+                                                    const parsed = JSON.parse(line.trim().substring(6));
+                                                    if (parsed.choices?.[0]?.delta?.content) {
+                                                        rawText += parsed.choices[0].delta.content;
+                                                    } else if (parsed.results?.[0]?.text) {
+                                                        rawText += parsed.results[0].text;
+                                                    }
+                                                } catch (e) {}
+                                            }
+                                        }
                                     }
                                     break;
                                 }
@@ -1021,11 +1019,7 @@ async function handleUpdate(abortSignal = null) {
                     }
 
                     // filter
-                    if (
-                        step.filter_enabled &&
-                        step.filter_script &&
-                        step.filter_script.trim() !== ""
-                    ) {
+                    if (step.filter_enabled && step.filter_script && step.filter_script.trim() !== "") {
                         try {
                             const filterFunc = new Function(
                                 "text",
@@ -1040,14 +1034,12 @@ async function handleUpdate(abortSignal = null) {
                             resultText = filteredText;
                         } catch (err) {
                             console.warn(`[World Updater] Filter script failed in step ${sIndex + 1}:`, err,);
-                            toastr.warning(
-                                `!FILTER FAILED IN STEP ${sIndex + 1}`,
-                            );
+                            toastr.warning(`!FILTER FAILED IN STEP ${sIndex + 1}`,);
                         }
                     }
 
                     // validation check start
-                    if (step.expected_enabled && step.expected_script?.trim()) {
+                    if (textBlocks.length > 0 && step.expected_enabled && step.expected_script?.trim()) {
                         try {
                             const expectedFunc = new Function(
                                 "text",
@@ -1067,10 +1059,10 @@ async function handleUpdate(abortSignal = null) {
                                     `Step ${sIndex + 1} failed validation on attempt ${attempt + 1}`,
                                 );
                                 failedAttempts.push(resultText);
-                                if (maxAttempts !== 0 && attempt === maxAttempts) {
-                                    toastr.warning(
-                                        `Step ${sIndex + 1} failed after max retries.`,
-                                    );
+                                if (maxAttempts !== 0 && attempt === maxAttempts - 1) {
+                                    toastr.warning(`!STEP ${sIndex + 1} FAILED AFTER MAX RETRIES`,);
+                                } else {
+                                    toastr.error("!NOT EXPECTED; AI WILL RETRY");
                                 }
                             }
                         } catch (err) {
@@ -1102,10 +1094,7 @@ async function handleUpdate(abortSignal = null) {
             }
 
             // save to char variable OR executes a script
-            if (
-                step.advanced_save_enabled &&
-                step.advanced_save_script?.trim()
-            ) {
+            if (step.advanced_save_enabled && step.advanced_save_script?.trim()) {
                 try {
                     console.log(`World Updater: Running Advanced Script for Step ${sIndex + 1}`,);
                     const advFunc = new AsyncFunction(
@@ -1161,6 +1150,7 @@ async function handleUpdate(abortSignal = null) {
             context.saveChatDebounced();
         }
         saveSettingsDebounced();
+        return wasAborted ? 'aborted' : 'success';
     } finally {
         isUpdating = false;
         abortController = null;
@@ -1734,8 +1724,10 @@ async function setupUI() {
             }
             return;
         }
-        await handleUpdate();
-        toastr.success("CHAIN UPDATE FINISHED");
+        const result = await handleUpdate();
+        if (result === 'success') {
+            toastr.success("CHAIN UPDATE FINISHED");
+        }
     });
 
     // a new refresh button because it was being a pain..
@@ -1746,7 +1738,7 @@ async function setupUI() {
     // everything went fine, right? =D
     toastr.warning("!DO NOT FORGET TO ENABLE EXPERIMENTAL MACRO ENGINE"); // yeah dont forget silly user
     wu_log("Do not forget to enable experimental macro engine");
-    toastr.success("World Updater has been loaded");
+    toastr.success("WORLD UPDATER HAS BEEN LOADED");
     wu_log("The world updater apparently works without any issue.");
 }
 
