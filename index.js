@@ -191,43 +191,15 @@ function renderSteps() {
     const container = $('#wu_steps_container');
     container.empty();
 
-    // start
-
     // if there are no steps, show a big add button to recover
     if (!activeProfile.steps || activeProfile.steps.length === 0) {
         container.html(`
-            <div style="
-                text-align: center;
-                color: #888;
-                padding: 20px;
-                border: 1px dashed rgba(255,255,255,0.2);
-                border-radius: 5px;
-                background: rgba(0,0,0,0.2);
-            ">
-
-                <div>
-                    No steps remaining in this chain.
-                </div>
-
+            <div style="text-align: center; color: #888; padding: 20px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 5px; background: rgba(0,0,0,0.2);">
+                <div>There are no steps.</div>
                 <div style="height: 12px;"></div>
-
-                <button
-                    id="wu_add_step"
-                    class="menu_button"
-                    style="
-                        padding: 5px 15px;
-                        width: 100%;
-                        font-weight: bold;
-                        color: #00ffcc;
-                        border-color: rgba(0,255,204,0.3);
-                        background: rgba(0,255,204,0.1);
-                    "
-                >
-                    + Add Chain Step
-                </button>
-
-            </div>
-        `);
+                <button id="wu_add_step" class="menu_button"
+                    style="padding: 5px 15px; width: 100%; font-weight: bold; color: #00ffcc; border-color: rgba(0,255,204,0.3); background: rgba(0,255,204,0.1);">+ Add Chain Step</button>
+            </div>`);
         return;
     }
 
@@ -277,35 +249,16 @@ function renderSteps() {
             }
 
             blocksHtml += `
-            <div style="
-                border: 1px dashed rgba(255,255,255,0.2);
-                padding: 8px;
-                border-radius: 5px;
-                background: rgba(0,0,0,0.2);
-                margin-top: 5px;
-            ">
+            <div style="border: 1px dashed rgba(255,255,255,0.2); padding: 8px; border-radius: 5px; background: rgba(0,0,0,0.2); margin-top: 5px;">
 
-                <!-- role + controls -->
-                <div style="
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 5px;
-                ">
+                <!-- role and controls -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
 
                     <!-- select -->
-                    <select
-                        class="text_al wu_block_role"
-                        data-step="${activeIndex}"
-                        data-block="${origBIndex}"
+                    <select class="text_al wu_block_role" data-step="${activeIndex}" data-block="${origBIndex}"
                         ${block.isCode ? 'disabled' : ''}
-                        style="
-                            width: auto;
-                            padding: 0 5px;
-                            color: white;
-                            background: ${block.isCode ? 'rgba(255,100,0,0.2)' : 'rgba(0,0,0,0.5)'};
-                        "
-                    >
+                        style="width: auto; padding: 0 5px; color: white; background: ${block.isCode ? 'rgba(255,100,0,0.2)' : 'rgba(0,0,0,0.5)'};">
+
                         <option value="system" ${block.role === 'system' ? 'selected' : ''}>System</option>
                         <option value="user" ${block.role === 'user' ? 'selected' : ''}>User</option>
                         <option value="assistant" ${block.role === 'assistant' ? 'selected' : ''}>Assistant</option>
@@ -314,28 +267,15 @@ function renderSteps() {
                     <div style="display: flex; gap: 6px; align-items: center;">
 
                         <!-- JS -->
-                        <label
-                            title="Not sent to AI prompt"
-                            style="
-                                display: flex;
-                                align-items: center;
-                                gap: 4px;
-                                font-size: 0.75em;
-                                color: #aaa;
-                                cursor: pointer;
-                                white-space: nowrap;
-                            "
-                        >
+                        <label title="Not sent to AI prompt"
+                            style="display: flex; align-items: center; gap: 4px; font-size: 0.75em; color: #aaa; cursor: pointer; white-space: nowrap;">
                             <input
                                 type="checkbox"
                                 class="wu_block_code"
                                 data-step="${activeIndex}"
                                 data-block="${origBIndex}"
                                 ${block.isCode ? 'checked' : ''}
-                                style="margin: 0; accent-color: #ffcc00;"
-                            >
-                            JS
-                        </label>
+                                style="margin: 0; accent-color: #ffcc00;">JS</label>
 
                         <!-- order input -->
                         <input
@@ -347,43 +287,27 @@ function renderSteps() {
                             max="255"
                             value="${block.order ?? 128}"
                             title="Block order (0=first, 255=last)"
-                            style="
-                                width: 55px;
-                                background: rgba(0,0,0,0.4);
-                                color: white;
-                                text-align: center;
-                                padding: 2px 4px;
-                                font-size: 0.85em;
-                            "
-                        >
+                            style="width: 55px; background: rgba(0,0,0,0.4); color: white; text-align: center; padding: 2px 4px; font-size: 0.85em;">
 
                         <button
                             class="menu_button wu_remove_block"
                             data-step="${activeIndex}"
                             data-block="${origBIndex}"
-                            style="color: #ff5555;"
-                        >
-                            ✖
-                        </button>
-
+                            style="color: #ff5555;">✖</button>
                     </div>
                 </div>
 
-                ${
-                    block.isCode
-                        ? `<div style="font-size: 0.7em; color: #ffcc00; margin-bottom: 5px;">
-                            !!!WARNING - JAVASCRIPT IS FULLY ALLOWED!!!
-                           </div>`
-                        : ''
-                }
+                ${block.isCode ? `<div style="font-size: 0.7em; color: #ffcc00; margin-bottom: 5px;">!!!WARNING - JAVASCRIPT IS FULLY ALLOWED!!!</div>` : ''}
 
                 <!-- filter for block -->
                 <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 5px;">
                     <div style="display: flex; gap: 5px; align-items: center;">
                         <label style="font-size: 0.75em; color: #aaa; min-width: 45px;">Trigger:</label>
-                        <select class="text_al wu_block_history_filter" data-step="${activeIndex}" data-block="${origBIndex}" style="width: auto; max-width: 250px; padding: 0 5px; font-size: 0.85em; background: rgba(0,0,0,0.5); color: white;">
-                            ${filterSelectHtml}
-                        </select>
+                        <select
+                            class="text_al wu_block_history_filter"
+                            data-step="${activeIndex}"
+                            data-block="${origBIndex}"
+                            style="width: auto; max-width: 250px; padding: 0 5px; font-size: 0.85em; background: rgba(0,0,0,0.5); color: white;">${filterSelectHtml}</select>
                     </div>
 
                     <div class="wu_exclude_row" style="display: ${(block.history_filter === 'all' || block.history_filter === 'char') ? 'flex' : 'none'}; gap: 5px; align-items: center;">
@@ -395,21 +319,23 @@ function renderSteps() {
                             data-block="${origBIndex}" 
                             placeholder="Name1, Name2..." 
                             value="${block.history_exclude || ''}"
-                            style="flex: 1; padding: 0 5px; font-size: 0.85em; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1);"
-                        >
+                            style="flex: 1; padding: 0 5px; font-size: 0.85em; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.1);">
                     </div>
                 </div>
 
             <!-- condition box -->
-                <div class="wu_condition_row" style="display: ${block.history_filter === 'condition' ? 'block' : 'none'}; margin-bottom: 5px;">
+                <div class="wu_condition_row" style="display: ${block.history_filter === 'condition'
+                    ? 'block'
+                    : 'none'};
+                    margin-bottom: 5px;">
+
                     <label style="font-size: 0.7em; color: #ffcc00; display: block; margin-bottom: 2px;">If</label>
                     <textarea 
                         class="text_al wu_block_run_condition_js" 
                         data-step="${activeIndex}" 
                         data-block="${origBIndex}" 
                         style="width: 100%; height: 60px; font-family: monospace; font-size: 0.8em; background: rgba(255, 204, 0, 0.05); color: #ffcc00; border: 1px solid rgba(255, 204, 0, 0.2);"
-                        placeholder="return lastMsg.mes.includes('<at>');"
-                    >${block.run_condition_js || ''}</textarea>
+                        placeholder="return lastMsg.mes.includes('<at>');">${block.run_condition_js || ''}</textarea>
                     <label style="font-size: 0.7em; color: #ffcc00; display: block; margin-bottom: 2px;">Then</label>
                 </div>
 
@@ -419,13 +345,7 @@ function renderSteps() {
                     data-step="${activeIndex}"
                     data-block="${origBIndex}"
                     rows="3"
-                    style="
-                        width: 100%;
-                        background: rgba(0,0,0,0.4);
-                        color: white;
-                    "
-                >${block.content}</textarea>
-
+                    style="width: 100%; background: rgba(0,0,0,0.4); color: white;">${block.content}</textarea>
             </div>`;
         });
     }
@@ -434,33 +354,17 @@ function renderSteps() {
     <div style="display: flex; flex-direction: column; gap: 10px;">
 
         <!-- steps list   -->
-
-        <div style="
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            background: rgba(0,0,0,0.3);
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid rgba(255,255,255,0.1);
-        ">
-
-            <b style="font-size: 0.75em; color: #aaa; margin-bottom: 5px;">
-                Steps
-            </b>
+        <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">
+            <b style="font-size: 0.75em; color: #aaa; margin-bottom: 5px;">Steps</b>
 
             <div style="display: flex; flex-direction: column; gap: 3px;">
                 ${activeProfile.steps.map((step, i) => `
-                    <div
-                        class="wu_step_tab ${i === activeIndex ? 'active' : ''}"
-                        data-index="${i}"
-                        title="${step.name}"
-                        style="
-                            cursor: pointer;
-                            padding: 6px 8px;
-                            border-radius: 4px;
-                            font-size: 0.8em;
+                    <div class="wu_step_tab ${i === activeIndex
+                        ? 'active'
+                        : ''}"
+                        data-index="${i}" title="${step.name}"
 
+                        style="cursor: pointer; padding: 6px 8px; border-radius: 4px; font-size: 0.8em;
                             background: ${i === activeIndex
                                 ? 'rgba(0, 255, 204, 0.2)'
                                 : 'rgba(0,0,0,0.3)'};
@@ -469,155 +373,58 @@ function renderSteps() {
                                 ? '#00ffcc'
                                 : 'rgba(255,255,255,0.1)'};
 
-                            color: ${i === activeIndex ? '#fff' : '#888'};
-                            white-space: nowrap;
-                        "
-                    >
-                        ${i + 1}. ${step.name || 'Step'}
-                    </div>
+                            color: ${i === activeIndex ? '#fff' : '#888'}; white-space: nowrap;">${i + 1}. ${step.name || 'Step'}</div>
                 `).join('')}
             </div>
 
-            <button
-                id="wu_add_step"
-                class="menu_button"
-                style="
-                    margin-top: auto;
-                    width: 100%;
-                    padding: 4px 8px;
-                    font-size: 0.8em;
-                    font-weight: bold;
-                    color: #00ffcc;
-                    border-color: rgba(0,255,204,0.3);
-                    background: rgba(0,255,204,0.1);
-                "
-            >
-                + Add
-            </button>
+            <button id="wu_add_step" class="menu_button"
+                style="margin-top: auto; width: 100%; padding: 4px 8px; font-size: 0.8em; font-weight: bold; color: #00ffcc; border-color: rgba(0,255,204,0.3); background: rgba(0,255,204,0.1);">+ Add</button>
         </div>
 
         <!-- step control bar -->
-        <div class="wu_step_controls" style="
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            background: rgba(0,0,0,0.3);
-            padding: 5px;
-            border-radius: 4px;
-            gap: 8px;
-        ">
+        <div class="wu_step_controls"
+            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; background: rgba(0,0,0,0.3); padding: 5px; border-radius: 4px; gap: 8px;">
 
-            <div style="
-                display: flex;
-                gap: 5px;
-                align-items: center;
-                flex-grow: 1;
-                min-width: 150px;
-            ">
-                <input
-                    type="checkbox"
-                    class="wu_step_enabled"
-                    data-step="${activeIndex}"
-                    ${currentStep?.enabled ? 'checked' : ''}
-                    title="Enable/Disable Step"
-                >
+            <div style="display: flex; gap: 5px; align-items: center; flex-grow: 1; min-width: 150px;">
+                
+                <input type="checkbox" class="wu_step_enabled" data-step="${activeIndex}" ${currentStep?.enabled
+                    ? 'checked'
+                    : ''}
+                    title="Enable/Disable Step">
 
-                <input
-                    type="text"
-                    class="text_al wu_step_name"
-                    data-step="${activeIndex}"
-                    value="${currentStep?.name}"
-                    placeholder="Step name"
-                    style="
-                        background: rgba(0,0,0,0.4);
-                        color: white;
-                        flex-grow: 1;
-                        min-width: 50px;
-                    "
-                >
+                <input type="text" class="text_al wu_step_name" data-step="${activeIndex}" value="${currentStep?.name}" placeholder="Step name"
+                    style="background: rgba(0,0,0,0.4); color: white; flex-grow: 1; min-width: 50px;">
             </div>
 
-            <div style="
-                display: flex;
-                gap: 4px;
-                flex-shrink: 0;
-                align-items: center;
-            ">
-                <input
-                    type="number"
-                    class="wu_step_order"
-                    data-step="${activeIndex}"
-                    min="0"
-                    max="255"
-                    value="${currentStep?.order ?? 128}"
-                    title="Step order (0=first, 255=last)"
-                    style="
-                        width: 55px;
-                        background: rgba(0,0,0,0.4);
-                        color: white;
-                        text-align: center;
-                        padding: 2px 4px;
-                        font-size: 0.85em;
-                    "
-                >
+            <div style="display: flex; gap: 4px; flex-shrink: 0; align-items: center;">
+                
+                <input type="number" class="wu_step_order" data-step="${activeIndex}" min="0" max="255" value="${currentStep?.order ?? 128}" title="Step order (0=first, 255=last)"
+                    style="width: 55px; background: rgba(0,0,0,0.4); color: white; text-align: center; padding: 2px 4px; font-size: 0.85em;">
 
-                <button
-                    class="menu_button wu_remove_step"
-                    data-step="${activeIndex}"
-                    title="Remove Step"
-                    style="color: #ff5555; padding: 0 8px;"
-                >
-                    X
-                </button>
+                <button class="menu_button wu_remove_step" data-step="${activeIndex}" title="Remove Step"
+                    style="color: #ff5555; padding: 0 8px;">X</button>
             </div>
         </div>
 
         <!-- blocks sect -->
         <div class="wu_blocks_wrapper" data-step="${activeIndex}">
 
-            <button
-                class="menu_button wu_toggle_blocks"
-                data-step="${activeIndex}"
-                style="
-                    width: 100%;
-                    text-align: center;
-                    padding: 4px 8px;
-                    background: rgba(255,255,255,0.05);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 4px;
-                    cursor: pointer;
-                "
-            >
+            <button class="menu_button wu_toggle_blocks" data-step="${activeIndex}"
+                style="width: 100%; text-align: center; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; cursor: pointer;">
                 <i class="fa-solid fa-angle-down" style="margin-right: 5px;"></i>
                 <span class="wu_toggle_label">Show</span>
             </button>
 
-            <div
-                class="wu_blocks_container"
-                data-step="${activeIndex}"
-                style="display: none; padding: 5px 0;"
-            >
+            <div class="wu_blocks_container" data-step="${activeIndex}"
+                style="display: none; padding: 5px 0;">
+                
                 ${blocksHtml}
 
-                <button
-                    class="menu_button wu_add_block"
-                    data-step="${activeIndex}"
-                    style="
-                        margin-top: 8px;
-                        padding: 3px 8px;
-                        width: 100%;
-                        font-weight: bold;
-                    "
-                >
-                    + Add Prompt Block
-                </button>
+                <button class="menu_button wu_add_block" data-step="${activeIndex}"
+                    style="margin-top: 8px; padding: 3px 8px; width: 100%; font-weight: bold;">+ Add Prompt Block</button>
             </div>
-
         </div>
-
-    </div>
-    `);
+    </div>`);
 
     $('.wu_block_content').each(function() {
         const s = $(this).data('step');
@@ -677,14 +484,7 @@ function updateProfileDropdown() {
                 <div
                     class="wu_profile_item"
                     data-index="${i}"
-                    style="
-                        padding: 6px 10px;
-                        cursor: pointer;
-                        font-size: 0.85em;
-                        color: #ccc;
-                        border-radius: 3px;
-                    "
-                >
+                    style="padding: 6px 10px; cursor: pointer; font-size: 0.85em; color: #ccc; border-radius: 3px;">
                     ${
                         isActive
                             ? `✓ <span style="color: #00ffcc;">${p.name}</span>`
