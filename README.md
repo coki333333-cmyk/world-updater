@@ -117,6 +117,10 @@ if (typeof context.saveMetadata === "function") {
 
 ================================
 
+examples:
+github.com/coki333333-cmyk/world-updater-examples (just import them!)
+
+================================
 
 If you don’t have a good PC/notebook or whatever you use, you don’t need to use a very powerful local model!
 
