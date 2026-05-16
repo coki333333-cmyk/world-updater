@@ -147,3 +147,9 @@ yes im extremely lazy and creating this took me a *little* while and honestly im
 ![4](https://raw.githubusercontent.com/coki333333-cmyk/world-updater/9613ffef7a0add8c8d428e12e02bff39abbf3de3/ksnip_20260516-095515.png)
 
 ![5](https://raw.githubusercontent.com/coki333333-cmyk/world-updater/9613ffef7a0add8c8d428e12e02bff39abbf3de3/ksnip_20260516-095533.png)
+
+===========
+list of codes
+===========
+
+(ps: i will update this soon! =D)
