@@ -1,0 +1,1 @@
+i made this extension to myself, im deciding to share it with people, no im not professional or blablabla i dont even know what 2 write here lol im just a person who wants to share a small thing about SillyTavern, im very lazy to explain but i'll try to instruct later!
