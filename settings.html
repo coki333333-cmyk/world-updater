@@ -155,6 +155,7 @@
                         <li><b>&#123;&#123;chat_history&#125;&#125;</b> inserts the last <b>N</b> messages based on History Depth</li>
                         <li><b>&#123;&#123;previous_output&#125;&#125;</b> inserts the output of the AI response or results of the JS code</li>
                         <li><b>&#123;&#123;failed_output&#125;&#125;</b> comes from <b>Expectation configurations</b>. It inserts the bad AIs response</li>
+                        <li><b>&#123;&#123;mes&#125;&#125;</b> inserts the text of the last message in the chat</li>
                     </ul>
 
                     <!-- notes -->
@@ -226,11 +227,12 @@
                         </select>
                         <input type="number" id="wu_correction_order" class="text_al" title="Order" style="width: 60px; text-align: center; background: rgba(0,0,0,0.4) !important; color: white !important;">
                     </div>
-                    <textarea id="wu_correction_content" class="text_al" style="width: 100%; height: 60px; background: rgba(0,0,0,0.4) !important; color: white !important;" placeholder="Your last output: {{previous_output}} is wrong!"></textarea>
+                    <textarea id="wu_correction_content" class="text_al" style="width: 100%; height: 60px; background: rgba(0,0,0,0.4) !important; color: white !important;" placeholder="{{failed_output}}"></textarea>
                     <div style="display: flex; gap: 10px; align-items: center; margin-top: 5px;">
                         <label style="font-size: 0.85em; color: #aaa;">Max retries</label>
                         <input type="number" id="wu_max_attempts" class="text_al" min="0" max="99" style="width: 60px; background: rgba(0,0,0,0.5) !important; color: white !important;">
                     </div>
+                    <div style="font-size: 0.8em; color: #ffcc00; margin-top: 3px;">When the AI outputs unexpected message, a warning will show up</div>
                 </div>
             </div>
 
