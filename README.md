@@ -135,3 +135,11 @@ final considerations:
 yes im extremely lazy and creating this took me a *little* while and honestly im very lazy to write something else on this readme.md =,) but thats alright
 
 ![1](https://raw.githubusercontent.com/coki333333-cmyk/world-updater/9613ffef7a0add8c8d428e12e02bff39abbf3de3/ksnip_20260516-095406.png)
+
+![2](https://raw.githubusercontent.com/coki333333-cmyk/world-updater/9613ffef7a0add8c8d428e12e02bff39abbf3de3/ksnip_20260516-095446.png)
+
+![3](https://raw.githubusercontent.com/coki333333-cmyk/world-updater/9613ffef7a0add8c8d428e12e02bff39abbf3de3/ksnip_20260516-095501.png)
+
+![4](https://raw.githubusercontent.com/coki333333-cmyk/world-updater/9613ffef7a0add8c8d428e12e02bff39abbf3de3/ksnip_20260516-095515.png)
+
+![5](https://raw.githubusercontent.com/coki333333-cmyk/world-updater/9613ffef7a0add8c8d428e12e02bff39abbf3de3/ksnip_20260516-095533.png)
