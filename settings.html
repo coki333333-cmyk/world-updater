@@ -102,6 +102,7 @@
                     <select id="wu_history_format" class="text_al" style="width: 100%; color: white !important; background: rgba(0,0,0,0.4) !important;">
                         <option value="text">Plain Text</option>
                         <option value="json">JSON Array</option>
+                        <option value="mkd">Markdown</option>
                     </select>
                 </div>
 
@@ -109,9 +110,10 @@
             <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.05);">
                 <label for="wu_run_mode" style="font-size: 0.85em; color: #ccc; font-weight: bold;">Automation Trigger:</label>
                 <select id="wu_run_mode" class="text_al" style="width: 100%; color: white !important; background: rgba(0,0,0,0.4) !important; border: 1px solid rgba(255,255,255,0.1);">
-                    <option value="after_ai">Run After AI message (Default)</option>
+                    <option value="auto">Let blocks decide (Recommended)</option>
+                    <option value="after_ai">Run After AI message</option>
                     <option value="after_user">Run After user message (Before AI)</option>
-                    <option value="manual">Manual Only (Disable Auto-run)</option>
+                    <option value="manual">Manual Only (Disable auto-run)</option>
                 </select>
                 <p style="font-size: 0.7em; color: #888; margin: 0;">Choose when the chain update starts automatically.</p>
             </div>
@@ -146,13 +148,12 @@
                     <ul style="font-size:0.8em; margin: 0; padding-left: 20px; color: #aaa;">
                         <li><b>&#123;&#123;chat_history&#125;&#125;</b> inserts the last N messages based on History Depth.</li>
                         <li><b>&#123;&#123;previous_output&#125;&#125;</b> inserts the direct output of the immediately preceding chain step.</li>
-                        <li>If you type a <i>Var name</i> on a Step, you can use <b>&#123;&#123;getvar::variable_name&#125;&#125;</b> in ANY step afterwards or in Character Cards.</li>
                     </ul>
 
                     <!-- notes -->
                     <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-top: 10px;">
                         <label style="font-size: 0.85em; color: #ccc;"><b>Notes</b></label>
-                        <textarea id="wu_profile_notes" class="text_al" style="width: 100%; height: 70px; min-height: 40px; font-family: sans-serif; font-size: 0.85em; background: rgba(0,0,0,0.4) !important; color: #ddd !important; resize: vertical; padding: 8px; border: 1px dashed rgba(255,255,255,0.15); border-radius: 4px; margin-top: 5px;" placeholder="INSIRA NOM"></textarea>
+                        <textarea id="wu_profile_notes" class="text_al" style="width: 100%; height: 70px; min-height: 40px; font-family: sans-serif; font-size: 0.85em; background: rgba(0,0,0,0.4) !important; color: #ddd !important; resize: vertical; padding: 8px; border: 1px dashed rgba(255,255,255,0.15); border-radius: 4px; margin-top: 5px;" placeholder="!INSERT SUMTHIN HERE!"></textarea>
                     </div>
 
                 </div>
@@ -208,7 +209,7 @@
                         </button>
                     </div>
                     <p style="font-size: 0.75em; color: #888; margin-top: 5px;">
-                        Use <b>&#123;&#123;getvar::variable_name&#125;&#125;</b> in the next steps or Character Cards.
+                        Use <b>&#123;&#123;getvar::variable_name&#125;&#125;</b> in the next steps cards or prompts!
                     </p>
                 </div>
 
