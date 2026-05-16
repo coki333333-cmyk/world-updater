@@ -197,6 +197,42 @@
                 <textarea id="wu_last_output" class="text_al" style="width: 100%; height: 120px; min-height: 60px; max-height: 250px; color: #00ffcc !important; background: rgba(0,0,0,0.3) !important; border: 1px dashed rgba(255,255,255,0.2); border-radius: 4px; font-family: monospace; font-size: 0.9em; margin-top: 5px; resize: vertical; padding: 8px;">{{last_output}}</textarea>
             </div>
 
+            <!-- expected / retry sect -->
+            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); margin-top: 5px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label><b>Expectation config</b></label>
+                    <button id="wu_toggle_expected" class="menu_button" style="padding: 2px 8px; font-size: 0.85em; background: rgba(255,255,255,0.1);">
+                        <i class="fa-solid fa-code"></i> Setup
+                    </button>
+                </div>
+                
+                <div id="wu_expected_container" style="display: none; margin-top: 10px; background: rgba(0,0,0,0.4); padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1);">
+                    <div style="font-size: 0.7em; color: #ffcc00; margin-bottom: 8px;">!!! WARNING: EXTREMELY AVOID IF YOUR ONLINE API IS BASED ON REQUESTS !!!</div>
+                    
+                    <label style="display: flex; gap: 5px; align-items: center; cursor: pointer; color: #aaa; font-size: 0.85em; margin-bottom: 5px;">
+                        <input type="checkbox" id="wu_expected_enabled" style="margin: 0; accent-color: #ffcc00;">Enable</label>
+                    <textarea id="wu_expected_script" class="text_al" style="width: 100%; height: 50px; font-family: monospace; font-size: 0.8em; background: rgba(0,0,0,0.4) !important; color: #ffcc00 !important;" placeholder="return text.includes('b');"></textarea>
+                    
+                    <hr style="border-color: rgba(255,255,255,0.1); margin: 12px 0;">
+
+                    <label style="display: flex; gap: 5px; align-items: center; cursor: pointer; color: #aaa; font-size: 0.85em; margin-bottom: 5px;">
+                        <input type="checkbox" id="wu_correction_enabled" style="margin: 0; accent-color: #ffcc00;">Inject correction message</label>
+                    <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
+                        <select id="wu_correction_role" class="text_al" style="width: auto; padding: 0 5px; background: rgba(0,0,0,0.5) !important; color: white !important;">
+                            <option value="system">System</option>
+                            <option value="user">User</option>
+                            <option value="assistant">Assistant</option>
+                        </select>
+                        <input type="number" id="wu_correction_order" class="text_al" title="Order" style="width: 60px; text-align: center; background: rgba(0,0,0,0.4) !important; color: white !important;">
+                    </div>
+                    <textarea id="wu_correction_content" class="text_al" style="width: 100%; height: 60px; background: rgba(0,0,0,0.4) !important; color: white !important;" placeholder="Your last output: {{previous_output}} is wrong!"></textarea>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 5px;">
+                        <label style="font-size: 0.85em; color: #aaa;">Max retries</label>
+                        <input type="number" id="wu_max_attempts" class="text_al" min="0" max="99" style="width: 60px; background: rgba(0,0,0,0.5) !important; color: white !important;">
+                    </div>
+                </div>
+            </div>
+
             <div id="wu_variable_container" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; margin-top: 5px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <label style="font-size: 0.85em; color: #aaa;">
