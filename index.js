@@ -4,6 +4,8 @@ const { eventSource, event_types, extensionSettings, saveSettingsDebounced, rend
 const MODULE_NAME = 'world_updater';
 let isUpdating = false;
 let abortController = null;
+const wu_console_logs_value = 0;
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 const defaultProfile = {
     name: "New Profile",
@@ -35,6 +37,14 @@ const defaultProfile = {
             advanced_save_enabled: false,
             filter_script: "return text.replace(/(^|\\n)-(\\S)/g, '$1- $2');",
             advanced_save_script: "await context.executeSlashCommands('/echo ' + resultText);",
+            expected_enabled: false,
+            expected_script: "return text.trim().length > 0;",
+            correction_enabled: false,
+            max_attempts: 3,
+            correction_role: 'user',
+            correction_order: 1,
+            correction_content: 'Your last output:\n{{failed_output}}\n\nIs invalid. Please follow the rules and try again.',
+            advanced_save_script: "await context.executeSlashCommands('/echo ' + resultText);",
             blocks:[
                 { role: 'system', content: 'Extract the core Location Name and Character Names.\nRules:\n1. Location: Use the shortest specific name. No descriptions (e.g., no "The dark room of").\n2. Characters: List every character mentioned.\n3. Style: Strict Template. No talking.\n\nEXAMPLES:\nInput: "He walked through the busy streets of New York with Peter."\nResult:\n[New York]\n- Peter\n\nInput: "Inside the messy kitchen, Mary and John were cooking."\nResult:\n[Kitchen]\n- Mary\n- John\n\nInput: "The dragon flew over the Volcanic Mountains of Doom."\nResult:\n[Mountains of Doom]\n- Dragon', order: 128, isCode: false, history_filter: 'all', history_filter_name: '', history_exclude: '', run_condition_js: 'return true;' },
                 { role: 'user', content: 'Data to analyze:\n"""\n{{chat_history}}\n"""', order: 128, isCode: false, history_filter: 'all', history_filter_name: '', history_exclude: '', run_condition_js: 'return true;' }
@@ -42,6 +52,13 @@ const defaultProfile = {
         }
     ]
 };
+
+function wu_log(...args) {
+    if (wu_console_logs_value === 1) {
+        console.log(`World Updater:`, ...args); // wu_log("example"); or wu_log(`example`);
+        console.trace();
+    }
+}
 
 function loadSettings() {
     if (!extensionSettings[MODULE_NAME]) extensionSettings[MODULE_NAME] = {};
@@ -105,6 +122,13 @@ function loadSettings() {
                     if (step.history_depth === undefined) step.history_depth = profile.history_depth ?? 1;
                     if (step.pre_filter_enabled === undefined) step.pre_filter_enabled = profile.pre_filter_enabled ?? false;
                     if (step.pre_filter_script === undefined) step.pre_filter_script = profile.pre_filter_script ?? "return text;";
+                    if (step.expected_enabled === undefined) step.expected_enabled = false;
+                    if (step.expected_script === undefined) step.expected_script = "return text.trim().length > 0;";
+                    if (step.max_attempts === undefined) step.max_attempts = 3;
+                    if (step.correction_enabled === undefined) step.correction_enabled = false;
+                    if (step.correction_role === undefined) step.correction_role = 'user';
+                    if (step.correction_order === undefined) step.correction_order = 1;
+                    if (step.correction_content === undefined) step.correction_content = 'Your last output:\n{{failed_output}}\n\nIs invalid. Please follow the rules and try again.';
                 });
             }
             delete profile.history_depth;
@@ -607,6 +631,17 @@ function renderSteps() {
     $('#wu_last_output').val(currentStep?.last_output || 'No output for this step yet.');
     $('#wu_filter_enabled').prop('checked', !!currentStep?.filter_enabled);
 
+    $('#wu_expected_enabled').prop('checked', !!currentStep?.expected_enabled);
+    $('#wu_expected_script').val(currentStep?.expected_script || "return text.trim().length > 0;");
+
+    $('#wu_max_attempts').val(currentStep?.max_attempts ?? 3);
+
+    $('#wu_correction_enabled').prop('checked', !!currentStep?.correction_enabled);
+    $('#wu_correction_role').val(currentStep?.correction_role || 'user');
+
+    $('#wu_correction_order').val(currentStep?.correction_order ?? 1);
+    $('#wu_correction_content').val(currentStep?.correction_content || 'Your last output:\n{{failed_output}}\n\nIs invalid. Please follow the rules and try again.');
+
     $('#wu_filter_script').val(currentStep?.filter_script || "return text;");
     $('#wu_history_depth').val(currentStep?.history_depth || 1);
 
@@ -726,14 +761,14 @@ async function handleUpdate(abortSignal = null) {
 
     isUpdating = true;
     updateRunButton(true);
-            // end of it was not changing the button i guess
+    // end of it was not changing the button i guess
     try {
         const settings = extensionSettings[MODULE_NAME];
         const activeProfile = settings.profiles[settings.active_profile];
 
         const chat = SillyTavern.getContext().chat;
 
-        if (!chat || chat.length === 0) { 
+        if (!chat || chat.length === 0) {
             return;
         }
 
@@ -751,346 +786,588 @@ async function handleUpdate(abortSignal = null) {
             const depth = Number(step.history_depth) || 1;
             if (abortSignal.aborted) {
                 wasAborted = true;
-                step.last_output = (step.last_output || '') + '\n\n[⏹ Chain was stopped by user]';
+                step.last_output =
+                    (step.last_output || "") +
+                    "\n\n[⏹ Chain was stopped by user]";
                 if (sIndex === settings.active_step_index) {
-                    $('#wu_last_output').val(step.last_output);
+                    $("#wu_last_output").val(step.last_output);
                 }
                 break;
             }
 
             if (!step.enabled) continue; // skip disabled steps
-            const stContext = SillyTavern.getContext();
-            
-            // identify the last speaker
-            const lastMsg = chat[chat.length - 1];
-            const lastSpeakerName = (lastMsg.name || '').toLowerCase().trim();
-            const isLastMsgUser = lastMsg.is_user;
 
-            const getBlockHistoryText = (block, override = null) => {
-                let filteredChat = chat;
-                const filterType = override ? override.toLowerCase().trim() : (block.history_filter || 'all');
-                const filterName = override ? override.toLowerCase().trim() : (block.history_filter_name || '');
+            let resultText = "";
+            let failedAttempts = [];
+            const maxAttempts = step.max_attempts !== undefined ? parseInt(step.max_attempts) : 3;
 
-                if (filterType === 'user') {
-                    filteredChat = filteredChat.filter(m => m.is_user);
-                } else if (filterType === 'char') {
-                    filteredChat = filteredChat.filter(m => !m.is_user);
-                } else if (filterType === 'name') {
-                    filteredChat = filteredChat.filter(m => (m.name || '').toLowerCase().trim() === filterName);
-                }
+            for (let attempt = 0; maxAttempts === 0 || attempt <= maxAttempts; attempt++) {
+                if (abortSignal.aborted) break;
 
-                filteredChat = filteredChat.slice(Math.max(0, filteredChat.length - depth));
+                const stContext = SillyTavern.getContext();
 
-                let filterFn = (t) => t;
-                if (step.pre_filter_enabled && step.pre_filter_script?.trim()) {
-                    try {
-                        filterFn = new Function('text', step.pre_filter_script);
-                    } catch (e) { console.warn("[World Updater] Pre-filter syntax error:", e); }
-                }
+                // identify the last speaker
+                const lastMsg = chat[chat.length - 1];
+                const lastSpeakerName = (lastMsg.name || "")
+                    .toLowerCase()
+                    .trim();
+                const isLastMsgUser = lastMsg.is_user;
 
-                const processedMessages = filteredChat.map(m => {
-                    let filteredContent = m.mes;
-                    try {
-                        const result = filterFn(m.mes);
-                        if (typeof result === 'string') filteredContent = result;
-                    } catch (e) { console.error("[World Updater] Pre-filter runtime error:", e); }
-                    return { name: m.name, mes: filteredContent };
-                });
-                
-                if (activeProfile.history_format === 'json') {
-                    return JSON.stringify(processedMessages.map(m => ({ character: m.name, text: m.mes })), null, 2);
-                } else if (activeProfile.history_format === 'mkd') {
-                    return processedMessages.map(m => `### ${m.name}\n${m.mes}`).join('\n\n---\n\n');
-                } else if (activeProfile.history_format === 'custom') {
-                    const formatStr = activeProfile.custom_history_format || "{{name}}: {{message}}";
-                    return processedMessages.map(m => formatStr.replace(/{{name}}/gi, () => m.name).replace(/{{message}}/gi, () => m.mes)).join('\n\n');
-                } else {
-                    return processedMessages.map(m => m.name + ': ' + m.mes).join('\n\n');
-                }
-            };
+                const getBlockHistoryText = (block, override = null) => {
+                    let filteredChat = chat;
+                    const filterType = override
+                        ? override.toLowerCase().trim()
+                        : block.history_filter || "all";
+                    const filterName = override
+                        ? override.toLowerCase().trim()
+                        : block.history_filter_name || "";
 
-            const sortedBlocks = [...step.blocks].sort((a, b) => (a.order || 128) - (b.order || 128))
-                .filter(block => {
-                    if (block.history_exclude && block.history_exclude.trim() !== "" && block.history_filter !== 'condition') {
-                        const excludeList = block.history_exclude.split(',').map(name => name.trim().toLowerCase());
-                        if (excludeList.includes(lastSpeakerName)) return false;
+                    if (filterType === "user") {
+                        filteredChat = filteredChat.filter((m) => m.is_user);
+                    } else if (filterType === "char") {
+                        filteredChat = filteredChat.filter((m) => !m.is_user);
+                    } else if (filterType === "name") {
+                        filteredChat = filteredChat.filter(
+                            (m) =>
+                                (m.name || "").toLowerCase().trim() ===
+                                filterName,
+                        );
                     }
-                    
-                    if (block.history_filter === 'user') return isLastMsgUser;
-                    if (block.history_filter === 'char') return !isLastMsgUser;
-                    if (block.history_filter === 'name') {
-                        const target = (block.history_filter_name || '').toLowerCase().trim();
-                        return !isLastMsgUser && lastSpeakerName === target;
-                    }
-                    if (block.history_filter === 'condition') {
+
+                    filteredChat = filteredChat.slice(
+                        Math.max(0, filteredChat.length - depth),
+                    );
+
+                    let filterFn = (t) => t;
+                    if (
+                        step.pre_filter_enabled &&
+                        step.pre_filter_script?.trim()
+                    ) {
                         try {
-                            const historyString = getBlockHistoryText(block);
-                            const condFunc = new Function('chat', 'lastMsg', 'variables', 'previous_output', 'substituteParams', 'chat_history', block.run_condition_js);
-                            const result = condFunc(chat, lastMsg, stContext.chatMetadata?.variables || {}, previousOutput, substituteParams, historyString);
-                            return !!result; 
+                            filterFn = new Function(
+                                "text",
+                                step.pre_filter_script,
+                            );
                         } catch (e) {
-                            console.warn("[World Updater] Trigger Condition Error in Step " + (sIndex + 1) + ":", e);
-                            return false;
+                            console.warn("World Updater: Pre-filter syntax error:", e,);
                         }
                     }
-                    return true;
-                });
-            if (sortedBlocks.length === 0) { // gemini is god, thx bro
-                continue;
-            }
 
-            const codeBlocks = sortedBlocks.filter(b => b.isCode);
-            const textBlocks = sortedBlocks.filter(b => !b.isCode);
+                    const processedMessages = filteredChat.map((m) => {
+                        let filteredContent = m.mes;
+                        try {
+                            const result = filterFn(m.mes);
+                            if (typeof result === "string")
+                                filteredContent = result;
+                        } catch (e) {
+                            console.error("World Updater: Pre-filter runtime error:", e,);
+                        }
+                        return { name: m.name, mes: filteredContent };
+                    });
 
-            for (const block of codeBlocks) {
-                try {
-                    const blockHistoryText = getBlockHistoryText(block);
-                    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-                    const codeFunc = new AsyncFunction(
-                        'previous_output',
-                        'chat_history',
-                        'mes',
-                        'variables',
-                        'substituteParams',
-                        block.content + '\n\n//# sourceURL=wu_code_block'
-                    );
-                    const result = await codeFunc(
-                        previousOutput,
-                        blockHistoryText,
-                        chat[chat.length - 1].mes,
-                        stContext.chatMetadata?.variables || {},
-                        substituteParams
-                    );
-                    if (result !== undefined) {
-                        previousOutput = String(result);
-                    }
-                } catch (e) {
-                    console.error(`[World Updater] Code block error in step ${sIndex + 1}:`, e);
-                    previousOutput = `/* CODE ERROR: ${e.message} */`;
-                }
-            }
-
-            const finalPrompt = textBlocks.map(block => {
-                let res = substituteParams(block.content);
-                res = res.replace(/{{chat_history(?:(?:::)([^}]+))?}}/g, (match, arg) => {
-                    const cleanArg = arg ? arg.trim() : null;
-                    return getBlockHistoryText(block, cleanArg);
-                })
-                .replace(/{{mes}}/g, () => chat[chat.length - 1].mes)
-                .replace(/{{previous_output}}/g, () => previousOutput);
-
-                return res;
-            }).join('\n\n');
-
-            try {
-                let resultText = "";
-
-                if (activeProfile.use_internal) {
-                    if (textBlocks.length > 0) {
-                        const generatePromise = generateRaw({
-                            prompt: finalPrompt,
-                            max_tokens: parseInt(activeProfile.max_tokens) || 50,
-                            temperature: Number(activeProfile.temperature),
-                            top_p: Number(activeProfile.top_p),
-                            top_k: Number(activeProfile.top_k),
-                            min_p: Number(activeProfile.min_p),
-                            rep_pen: Number(activeProfile.repeat_penalty),
-                            presence_penalty: Number(activeProfile.presence_penalty),
-                            signal: abortSignal
-                        });
-
-                        const abortPromise = new Promise((_, reject) => {
-                            if (abortSignal.aborted) reject(new DOMException('Aborted', 'AbortError'));
-                            abortSignal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
-                        });
-                        const rawInternalText = await Promise.race([generatePromise, abortPromise]);
-                        const cleanedInternal = cleanAIResponse(rawInternalText);
-                        resultText = cleanedInternal || previousOutput;
+                    if (activeProfile.history_format === "json") {
+                        return JSON.stringify(
+                            processedMessages.map((m) => ({
+                                character: m.name,
+                                text: m.mes,
+                            })),
+                            null,
+                            2,
+                        );
+                    } else if (activeProfile.history_format === "mkd") {
+                        return processedMessages
+                            .map((m) => `### ${m.name}\n${m.mes}`)
+                            .join("\n\n---\n\n");
+                    } else if (activeProfile.history_format === "custom") {
+                        const formatStr =
+                            activeProfile.custom_history_format ||
+                            "{{name}}: {{message}}";
+                        return processedMessages
+                            .map((m) =>
+                                formatStr
+                                    .replace(/{{name}}/gi, () => m.name)
+                                    .replace(/{{message}}/gi, () => m.mes),
+                            )
+                            .join("\n\n");
                     } else {
-                        resultText = previousOutput;
+                        return processedMessages
+                            .map((m) => m.name + ": " + m.mes)
+                            .join("\n\n");
                     }
-                } else {
-                    if (textBlocks.length > 0) {
-                        const headers = { "Content-Type": "application/json" };
-                        if (activeProfile.api_key) headers["Authorization"] = `Bearer ${activeProfile.api_key}`;
+                };
 
-                        const apiMessages = textBlocks.map(b => {
-                            let res = substituteParams(b.content);
-                            res = res.replace(/{{chat_history(?:(?:::)([^}]+))?}}/g, (match, arg) => {
-                                const cleanArg = arg ? arg.trim() : null;
-                                return getBlockHistoryText(b, cleanArg);
-                            })
-                            .replace(/{{mes}}/g, () => chat[chat.length - 1].mes)
-                            .replace(/{{previous_output}}/g, () => previousOutput);
-
-                            return {
-                                role: b.role,
-                                content: res
-                            };
-                        });
-
-                        const lastBlock = apiMessages[apiMessages.length - 1];
-                        if (lastBlock?.role === 'user' && lastBlock.content.endsWith('Result:[')) {
-                            lastBlock.content = lastBlock.content.replace('Result:[', 'Result:');
-                            apiMessages.push({ role: 'assistant', content: '[' });
+                const sortedBlocks = [...step.blocks]
+                    .sort((a, b) => (a.order || 128) - (b.order || 128))
+                    .filter((block) => {
+                        if (
+                            block.history_exclude &&
+                            block.history_exclude.trim() !== "" &&
+                            block.history_filter !== "condition"
+                        ) {
+                            const excludeList = block.history_exclude
+                                .split(",")
+                                .map((name) => name.trim().toLowerCase());
+                            if (excludeList.includes(lastSpeakerName))
+                                return false;
                         }
 
-                        const response = await fetch(activeProfile.api_url, {
-                            method: "POST",
-                            headers: headers,
-                            signal: abortSignal,
-                            body: JSON.stringify({
-                                model: activeProfile.model || "auto",
-                                messages: apiMessages,
-                                max_tokens: parseInt(activeProfile.max_tokens) || 50,
+                        if (block.history_filter === "user")
+                            return isLastMsgUser;
+                        if (block.history_filter === "char")
+                            return !isLastMsgUser;
+                        if (block.history_filter === "name") {
+                            const target = (block.history_filter_name || "")
+                                .toLowerCase()
+                                .trim();
+                            return !isLastMsgUser && lastSpeakerName === target;
+                        }
+                        if (block.history_filter === "condition") {
+                            try {
+                                const historyString =
+                                    getBlockHistoryText(block);
+                                const condFunc = new Function(
+                                    "chat",
+                                    "lastMsg",
+                                    "variables",
+                                    "previous_output",
+                                    "substituteParams",
+                                    "chat_history",
+                                    block.run_condition_js,
+                                );
+                                const result = condFunc(
+                                    chat,
+                                    lastMsg,
+                                    stContext.chatMetadata?.variables || {},
+                                    previousOutput,
+                                    substituteParams,
+                                    historyString,
+                                );
+                                return !!result;
+                            } catch (e) {
+                                console.warn("World Updater: Trigger Condition Error in Step " + (sIndex + 1) + ":", e,);
+                                return false;
+                            }
+                        }
+                        return true;
+                    });
+
+                let dynamicBlocks = [...sortedBlocks];
+                if (attempt > 0 && step.correction_enabled && step.correction_content) {
+                    const failed_output = failedAttempts[failedAttempts.length - 1] || "";
+                    const correctedContent = step.correction_content
+                        .replace(/{{failed_output}}/g, failed_output)
+                        .replace(/{{previous_output}}/g, previousOutput);
+                    
+                    dynamicBlocks.push({
+                        role: step.correction_role || "user",
+                        content: correctedContent,
+                        order: step.correction_order ?? 1,
+                        isCode: false,
+                    });
+                    dynamicBlocks.sort((a, b) => (a.order || 128) - (b.order || 128));
+                }
+
+                const codeBlocks = dynamicBlocks.filter((b) => b.isCode);
+                const textBlocks = dynamicBlocks.filter((b) => !b.isCode);
+
+                for (const block of codeBlocks) {
+                    try {
+                        const blockHistoryText = getBlockHistoryText(block);
+                        const codeFunc = new AsyncFunction(
+                            "previous_output",
+                            "chat_history",
+                            "mes",
+                            "variables",
+                            "substituteParams",
+                            block.content + "\n\n//# sourceURL=wu_code_block",
+                        );
+                        const result = await codeFunc(
+                            previousOutput,
+                            blockHistoryText,
+                            chat[chat.length - 1].mes,
+                            stContext.chatMetadata?.variables || {},
+                            substituteParams,
+                        );
+                        if (result !== undefined) {
+                            previousOutput = String(result);
+                        }
+                    } catch (e) {
+                        console.error(`[World Updater] Code block error in step ${sIndex + 1}:`, e,);
+                        previousOutput = `/* CODE ERROR: ${e.message} */`;
+                    }
+                }
+
+                const finalPrompt = textBlocks
+                    .map((block) => {
+                        let res = substituteParams(block.content);
+                        res = res
+                            .replace(
+                                /{{chat_history(?:(?:::)([^}]+))?}}/g,
+                                (match, arg) => {
+                                    const cleanArg = arg ? arg.trim() : null;
+                                    return getBlockHistoryText(block, cleanArg);
+                                },
+                            )
+                            .replace(
+                                /{{mes}}/g,
+                                () => chat[chat.length - 1].mes,
+                            )
+                            .replace(
+                                /{{previous_output}}/g,
+                                () => previousOutput,
+                            );
+
+                        return res;
+                    })
+                    .join("\n\n");
+
+                try {
+                    resultText = "";
+
+                    if (activeProfile.use_internal) {
+                        if (textBlocks.length > 0) {
+                            const generatePromise = generateRaw({
+                                prompt: finalPrompt,
+                                max_tokens:
+                                    parseInt(activeProfile.max_tokens) || 50,
                                 temperature: Number(activeProfile.temperature),
                                 top_p: Number(activeProfile.top_p),
                                 top_k: Number(activeProfile.top_k),
                                 min_p: Number(activeProfile.min_p),
-                                repeat_penalty: Number(activeProfile.repeat_penalty),
-                                presence_penalty: Number(activeProfile.presence_penalty),
-                                frequency_penalty: Number(activeProfile.frequency_penalty),
-                                stream: true // streaming
-                            })
-                        });
+                                rep_pen: Number(activeProfile.repeat_penalty),
+                                presence_penalty: Number(
+                                    activeProfile.presence_penalty,
+                                ),
+                                signal: abortSignal,
+                            });
 
-                        let rawText = "";
-                        const reader = response.body.getReader();
-                        const decoder = new TextDecoder("utf-8");
-                        let buffer = ""; // buffer
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) {
-                                if (buffer.trim().startsWith('data: ') && buffer.trim() !== 'data: [DONE]') {
-                                    try {
-                                        const parsed = JSON.parse(buffer.trim().substring(6));
-                                        if (parsed.choices?.[0]?.delta?.content) rawText += parsed.choices[0].delta.content;
-                                        else if (parsed.results?.[0]?.text) rawText += parsed.results[0].text;
-                                    } catch(e) {}
-                                }
-                                break;
-                            }
-                            buffer += decoder.decode(value, { stream: true });
-                            const lines = buffer.split('\n');
-                            buffer = lines.pop(); 
-                            
-                            for (const line of lines) {
-                                if (line.trim().startsWith('data: ')) {
-                                    const dataStr = line.trim().substring(6);
-                                    if (dataStr === '[DONE]') continue;
-                                    try {
-                                        const parsed = JSON.parse(dataStr);
-                                        if (parsed.choices?.[0]?.delta?.content) {
-                                            rawText += parsed.choices[0].delta.content;
-                                        } else if (parsed.results?.[0]?.text) {
-                                            rawText += parsed.results[0].text;
-                                        }
-                                    } catch (err) {}
-                                }
-                            }
-                        }
-                        const cleaned = cleanAIResponse(rawText);
-                        resultText = cleaned || previousOutput;
-                        if (lastBlock?.role === 'assistant') {
-                            if (!resultText.startsWith('[')) {
-                                resultText = '[' + resultText;
-                            }
+                            let abortHandler;
+                            const abortPromise = new Promise((_, reject) => {
+                                if (abortSignal.aborted) return reject(new DOMException("Aborted", "AbortError"));
+                                abortHandler = () => reject(new DOMException("Aborted", "AbortError"));
+                                abortSignal.addEventListener("abort", abortHandler);
+                            });
+
+                            const rawInternalText = await Promise.race([
+                                generatePromise,
+                                abortPromise,
+                            ]).finally(() => {
+                                if (abortHandler) abortSignal.removeEventListener("abort", abortHandler);
+                            });
+                            const cleanedInternal =
+                                cleanAIResponse(rawInternalText);
+                            resultText = cleanedInternal || previousOutput;
+                        } else {
+                            resultText = previousOutput;
                         }
                     } else {
-                        resultText = previousOutput;
-                    }
-                }
+                        if (textBlocks.length > 0) {
+                            const headers = {
+                                "Content-Type": "application/json",
+                            };
+                            if (activeProfile.api_key)
+                                headers["Authorization"] =
+                                    `Bearer ${activeProfile.api_key}`;
 
-                // filter
-                if (step.filter_enabled && step.filter_script && step.filter_script.trim() !== "") {
-                    try {
-                        const filterFunc = new Function('text', step.filter_script);
-                        const filteredText = filterFunc(resultText);
-                        if (typeof filteredText !== 'string') {
-                            throw new Error("Filter script must return a string.");
+                            const apiMessages = textBlocks.map((b) => {
+                                let res = substituteParams(b.content);
+                                res = res
+                                    .replace(
+                                        /{{chat_history(?:(?:::)([^}]+))?}}/g,
+                                        (match, arg) => {
+                                            const cleanArg = arg
+                                                ? arg.trim()
+                                                : null;
+                                            return getBlockHistoryText(
+                                                b,
+                                                cleanArg,
+                                            );
+                                        },
+                                    )
+                                    .replace(
+                                        /{{mes}}/g,
+                                        () => chat[chat.length - 1].mes,
+                                    )
+                                    .replace(
+                                        /{{previous_output}}/g,
+                                        () => previousOutput,
+                                    );
+
+                                return {
+                                    role: b.role,
+                                    content: res,
+                                };
+                            });
+
+                            const lastBlock =
+                                apiMessages[apiMessages.length - 1];
+                            if (
+                                lastBlock?.role === "user" &&
+                                lastBlock.content.endsWith("Result:[")
+                            ) {
+                                lastBlock.content = lastBlock.content.replace(
+                                    "Result:[",
+                                    "Result:",
+                                );
+                                apiMessages.push({
+                                    role: "assistant",
+                                    content: "[",
+                                });
+                            }
+
+                            const response = await fetch(
+                                activeProfile.api_url,
+                                {
+                                    method: "POST",
+                                    headers: headers,
+                                    signal: abortSignal,
+                                    body: JSON.stringify({
+                                        model: activeProfile.model || "auto",
+                                        messages: apiMessages,
+                                        max_tokens:
+                                            parseInt(
+                                                activeProfile.max_tokens,
+                                            ) || 50,
+                                        temperature: Number(
+                                            activeProfile.temperature,
+                                        ),
+                                        top_p: Number(activeProfile.top_p),
+                                        top_k: Number(activeProfile.top_k),
+                                        min_p: Number(activeProfile.min_p),
+                                        repeat_penalty: Number(
+                                            activeProfile.repeat_penalty,
+                                        ),
+                                        presence_penalty: Number(
+                                            activeProfile.presence_penalty,
+                                        ),
+                                        frequency_penalty: Number(
+                                            activeProfile.frequency_penalty,
+                                        ),
+                                        stream: true, // streaming
+                                    }),
+                                },
+                            );
+
+                            let rawText = "";
+                            const reader = response.body.getReader();
+                            const decoder = new TextDecoder("utf-8");
+                            let buffer = ""; // buffer
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) {
+                                    if (
+                                        buffer.trim().startsWith("data: ") &&
+                                        buffer.trim() !== "data: [DONE]"
+                                    ) {
+                                        try {
+                                            const parsed = JSON.parse(
+                                                buffer.trim().substring(6),
+                                            );
+                                            if (
+                                                parsed.choices?.[0]?.delta
+                                                    ?.content
+                                            )
+                                                rawText +=
+                                                    parsed.choices[0].delta
+                                                        .content;
+                                            else if (parsed.results?.[0]?.text)
+                                                rawText +=
+                                                    parsed.results[0].text;
+                                        } catch (e) {}
+                                    }
+                                    break;
+                                }
+                                buffer += decoder.decode(value, {
+                                    stream: true,
+                                });
+                                const lines = buffer.split("\n");
+                                buffer = lines.pop();
+
+                                for (const line of lines) {
+                                    if (line.trim().startsWith("data: ")) {
+                                        const dataStr = line
+                                            .trim()
+                                            .substring(6);
+                                        if (dataStr === "[DONE]") continue;
+                                        try {
+                                            const parsed = JSON.parse(dataStr);
+                                            if (
+                                                parsed.choices?.[0]?.delta
+                                                    ?.content
+                                            ) {
+                                                rawText +=
+                                                    parsed.choices[0].delta
+                                                        .content;
+                                            } else if (
+                                                parsed.results?.[0]?.text
+                                            ) {
+                                                rawText +=
+                                                    parsed.results[0].text;
+                                            }
+                                        } catch (err) {}
+                                    }
+                                }
+                            }
+                            const cleaned = cleanAIResponse(rawText);
+                            resultText = cleaned || previousOutput;
+                            if (lastBlock?.role === "assistant") {
+                                if (!resultText.startsWith("[")) {
+                                    resultText = "[" + resultText;
+                                }
+                            }
+                        } else {
+                            resultText = previousOutput;
                         }
-                        resultText = filteredText;
-                    } catch (err) {
-                        console.warn(`[World Updater] Filter script failed in step ${sIndex+1}:`, err);
-                        toastr.warning(`!FILTER FAILED IN STEP ${sIndex+1}`);
                     }
-                }
 
-                previousOutput = resultText;
-                step.last_output = resultText;
-
-                if (sIndex === settings.active_step_index) {
-                    $('#wu_last_output').val(resultText);
-                }
-
-                // save to char variable OR executes a script
-                if (step.advanced_save_enabled && step.advanced_save_script?.trim()) {
-                    try {
-                        console.log(`[World Updater] Running Advanced Script for Step ${sIndex + 1}`);
-                        const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-                        const advFunc = new AsyncFunction('resultText', 'context', 'substituteParams', 'toastr', step.advanced_save_script);
-
-                        await advFunc(resultText, SillyTavern.getContext(), substituteParams, window.toastr);
-                    } catch (err) {
-                        console.error(`[World Updater] Advanced script error in step ${sIndex + 1}:`, err);
-                        window.toastr.error(`JS Error (Step ${sIndex + 1}): ${err.message}`);
-                    }
-                } else if (step.variable_name && step.variable_name.trim() !== "") {
-                    const varName = step.variable_name.trim();
-                    const stContext = SillyTavern.getContext();
-                    if (stContext.chatMetadata) {
-                        if (typeof stContext.chatMetadata.variables !== 'object') {
-                            stContext.chatMetadata.variables = {};
-                        }
-                        stContext.chatMetadata.variables[varName] = resultText;
-                        if (typeof stContext.saveMetadata === 'function') {
-                            await stContext.saveMetadata();
+                    // filter
+                    if (
+                        step.filter_enabled &&
+                        step.filter_script &&
+                        step.filter_script.trim() !== ""
+                    ) {
+                        try {
+                            const filterFunc = new Function(
+                                "text",
+                                step.filter_script,
+                            );
+                            const filteredText = filterFunc(resultText);
+                            if (typeof filteredText !== "string") {
+                                throw new Error(
+                                    "Filter script must return a string.",
+                                );
+                            }
+                            resultText = filteredText;
+                        } catch (err) {
+                            console.warn(`[World Updater] Filter script failed in step ${sIndex + 1}:`, err,);
+                            toastr.warning(
+                                `!FILTER FAILED IN STEP ${sIndex + 1}`,
+                            );
                         }
                     }
-                }
-            } catch (e) {
-                if (e.name === 'AbortError') {
-                    wasAborted = true;
-                    console.log('[World Updater] Chain update aborted by user.');
-                    break;
-                } else {
-                    console.error(`[World Updater] Error in Step ${sIndex+1}:`, e);
-                    step.last_output = `ERROR OCCURRED: ${e.message}`;
-                    if (sIndex === settings.active_step_index) {
-                        $('#wu_last_output').val(step.last_output);
+
+                    // validation check start
+                    if (step.expected_enabled && step.expected_script?.trim()) {
+                        try {
+                            const expectedFunc = new Function(
+                                "text",
+                                "previous_output",
+                                "variables",
+                                step.expected_script,
+                            );
+                            const isValid = expectedFunc(
+                                resultText,
+                                previousOutput,
+                                stContext.chatMetadata?.variables || {},
+                            );
+                            if (isValid) {
+                                break;
+                            } else {
+                                wu_log(
+                                    `Step ${sIndex + 1} failed validation on attempt ${attempt + 1}`,
+                                );
+                                failedAttempts.push(resultText);
+                                if (maxAttempts !== 0 && attempt === maxAttempts) {
+                                    toastr.warning(
+                                        `Step ${sIndex + 1} failed after max retries.`,
+                                    );
+                                }
+                            }
+                        } catch (err) {
+                            console.error("Expected script error:", err);
+                            break;
+                        }
+                    } else {
+                        break;
                     }
-                    break;
+                } catch (e) {
+                    if (e.name === "AbortError") {
+                        wasAborted = true;
+                        console.log("World Updater: Chain update aborted by user.",);
+                        break;
+                    } else {
+                        console.error(`[World Updater] Error in Step ${sIndex + 1}:`, e,);
+                        break;
+                    }
+                }
+            }
+
+            if (wasAborted) break;
+
+            previousOutput = resultText;
+            step.last_output = resultText;
+
+            if (sIndex === settings.active_step_index) {
+                $("#wu_last_output").val(resultText);
+            }
+
+            // save to char variable OR executes a script
+            if (
+                step.advanced_save_enabled &&
+                step.advanced_save_script?.trim()
+            ) {
+                try {
+                    console.log(`World Updater: Running Advanced Script for Step ${sIndex + 1}`,);
+                    const advFunc = new AsyncFunction(
+                        "resultText",
+                        "context",
+                        "substituteParams",
+                        "toastr",
+                        step.advanced_save_script,
+                    );
+                    await advFunc(
+                        resultText,
+                        SillyTavern.getContext(),
+                        substituteParams,
+                        window.toastr,
+                    );
+                } catch (err) {
+                    console.error(`World Updater: Advanced script error in step ${sIndex + 1}:`, err,);
+                    window.toastr.error(`JS Error (Step ${sIndex + 1}): ${err.message}`,);
+                }
+            } else if (step.variable_name && step.variable_name.trim() !== "") {
+                const varName = step.variable_name.trim();
+                const stContext = SillyTavern.getContext();
+                if (stContext.chatMetadata) {
+                    if (typeof stContext.chatMetadata.variables !== "object") {
+                        stContext.chatMetadata.variables = {};
+                    }
+                    stContext.chatMetadata.variables[varName] = resultText;
+                    if (typeof stContext.saveMetadata === "function") {
+                        await stContext.saveMetadata();
+                    }
                 }
             }
         }
+
         if (wasAborted) {
             try {
                 const stContext = SillyTavern.getContext();
-                if (typeof stContext.abortController?.abort === 'function') {
+                if (typeof stContext.abortController?.abort === "function") {
                     stContext.abortController.abort();
                 }
-                if (typeof window.stopGeneration === 'function') {
+                if (typeof window.stopGeneration === "function") {
                     window.stopGeneration();
                 }
-                if (typeof window.api?.stopGeneration === 'function') {
+                if (typeof window.api?.stopGeneration === "function") {
                     await window.api.stopGeneration();
                 }
             } catch (e) {
-                console.debug('[World Updater] Could not stop main generation:', e);
+                console.debug("World Updater: Could not stop main generation:", e,);
             }
         }
 
-        if (typeof context.saveChatDebounced === 'function') {
+        if (typeof context.saveChatDebounced === "function") {
             context.saveChatDebounced();
         }
         saveSettingsDebounced();
-
     } finally {
         isUpdating = false;
         abortController = null;
         updateRunButton(false);
     }
 }
+
 
 async function setupUI() {
     loadSettings();
@@ -1257,7 +1534,7 @@ async function setupUI() {
                 refreshUI();
                 saveSettingsDebounced();
             } catch (err) {
-                console.error("[World Updater] Import failed:", err);
+                console.error("World Updater: Import failed:", err);
                 toastr.error("!FAILED TO IMPORT PROFILE: " + err.message);
             } finally {
                 $('#wu_import_profile_input').val('');
@@ -1506,6 +1783,48 @@ async function setupUI() {
         }
     });
 
+    // expected
+    $(document).off('click', '#wu_toggle_expected').on('click', '#wu_toggle_expected', () => {
+        $('#wu_expected_container').toggle();
+    });
+
+    $(document).off('change', '#wu_expected_enabled').on('change', '#wu_expected_enabled', (e) => {
+        const step = settings.profiles[settings.active_profile].steps[settings.active_step_index];
+        if (step) { step.expected_enabled = $(e.target).is(':checked'); saveSettingsDebounced(); }
+    });
+
+    $(document).off('input', '#wu_expected_script').on('input', '#wu_expected_script', (e) => {
+        const step = settings.profiles[settings.active_profile].steps[settings.active_step_index];
+        if (step) { step.expected_script = $(e.target).val(); saveSettingsDebounced(); }
+    });
+
+    $(document).off('input', '#wu_max_attempts').on('input', '#wu_max_attempts', (e) => {
+        const step = settings.profiles[settings.active_profile].steps[settings.active_step_index];
+        if (step) { step.max_attempts = parseInt($(e.target).val()) || 0; saveSettingsDebounced(); }
+    });
+
+    $(document).off('change', '#wu_correction_enabled').on('change', '#wu_correction_enabled', (e) => {
+        const step = settings.profiles[settings.active_profile].steps[settings.active_step_index];
+        if (step) { step.correction_enabled = $(e.target).is(':checked'); saveSettingsDebounced(); }
+    });
+
+    $(document).off('change', '#wu_correction_role').on('change', '#wu_correction_role', (e) => {
+        const step = settings.profiles[settings.active_profile].steps[settings.active_step_index];
+        if (step) { step.correction_role = $(e.target).val(); saveSettingsDebounced(); }
+    });
+
+    $(document).off('input', '#wu_correction_order').on('input', '#wu_correction_order', (e) => {
+        const step = settings.profiles[settings.active_profile].steps[settings.active_step_index];
+        if (step) { step.correction_order = parseInt($(e.target).val()) || 1; saveSettingsDebounced(); }
+    });
+
+    $(document).off('input', '#wu_correction_content').on('input', '#wu_correction_content', (e) => {
+        const step = settings.profiles[settings.active_profile].steps[settings.active_step_index];
+        if (step) { step.correction_content = $(e.target).val(); saveSettingsDebounced(); }
+    });
+
+    // expected end
+
     $(document).off('change', '#wu_advanced_save_enabled').on('change', '#wu_advanced_save_enabled', (e) => {
         const step = settings.profiles[settings.active_profile].steps[settings.active_step_index];
         if (step) {
@@ -1623,6 +1942,12 @@ async function setupUI() {
     $(document).off('click', '#wu_refresh_ui').on('click', '#wu_refresh_ui', () => {
         refreshUI();
     });
+
+    // everything went fine, right? =D
+    toastr.warning("!DO NOT FORGET TO ENABLE EXPERIMENTAL MACRO ENGINE"); // yeah dont forget silly user
+    wu_log("Do not forget to enable experimental macro engine");
+    toastr.success("World Updater has been loaded");
+    wu_log("The world updater apparently works without any issue.");
 }
 
 eventSource.on(event_types.APP_READY, setupUI);
