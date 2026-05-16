@@ -624,26 +624,27 @@ async function handleUpdate(abortSignal = null) {
                 const isLastMsgUser = lastMsg.is_user;
 
                 const getBlockHistoryText = (block, override = null) => {
-                    let filteredChat = chat;
-                    const filterType = override
-                        ? override.toLowerCase().trim()
-                        : block.history_filter || "all";
-                    const filterName = override
-                        ? override.toLowerCase().trim()
-                        : block.history_filter_name || "";
-
-                    if (filterType === "user") {
-                        filteredChat = filteredChat.filter((m) => m.is_user);
-                    } else if (filterType === "char") {
-                        filteredChat = filteredChat.filter((m) => !m.is_user);
-                    } else if (filterType === "name") {
-                        filteredChat = filteredChat.filter(
-                            (m) =>
-                                (m.name || "").toLowerCase().trim() ===
-                                filterName,
-                        );
-                    }
-
+                        let filteredChat = chat;
+                        let filterType = block.history_filter || "all";
+                        let filterName = (block.history_filter_name || "").toLowerCase().trim();
+                        if (override) {
+                            const o = override.toLowerCase().trim();
+                            if (o === "user" || o === "char" || o === "all") {
+                                filterType = o;
+                            } else {
+                                filterType = "name";
+                                filterName = o;
+                            }
+                        }
+                        if (filterType === "user") {
+                            filteredChat = filteredChat.filter((m) => m.is_user);
+                        } else if (filterType === "char") {
+                            filteredChat = filteredChat.filter((m) => !m.is_user);
+                        } else if (filterType === "name") {
+                            filteredChat = filteredChat.filter(
+                                (m) => (m.name || "").toLowerCase().trim() === filterName
+                            );
+                        }
                     filteredChat = filteredChat.slice(
                         Math.max(0, filteredChat.length - depth),
                     );
