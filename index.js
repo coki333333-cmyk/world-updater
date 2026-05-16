@@ -10,6 +10,7 @@ const defaultProfile = {
     run_mode: 'auto',
     use_internal: false,
     history_format: 'json',
+    custom_history_format: '{{name}}: {{message}}',
     api_url: 'http://127.0.0.1:5001/v1/chat/completions',
     api_key: '', // NOT USABLE ANYMORE
     model: '', // NOT USABLE ANYMORE
@@ -618,9 +619,13 @@ function renderSteps() {
     if (currentStep?.advanced_save_enabled) {
         $('#wu_normal_save_container').hide();
         $('#wu_advanced_save_container').show();
+        $('#wu_save_text_1').text('Run script after');
+        $('#wu_save_text_2').text('output:');
     } else {
         $('#wu_normal_save_container').show();
         $('#wu_advanced_save_container').hide();
+        $('#wu_save_text_1').text('Save');
+        $('#wu_save_text_2').text('to variable:');
     }
 }
 
@@ -689,6 +694,14 @@ function refreshUI() {
     $('#wu_tokens').val(p.max_tokens);
     $('#wu_profile_notes').val(p.notes || '');
     $('#wu_history_format').val(p.history_format || 'text');
+
+    $('#wu_custom_history_format').val(p.custom_history_format || '{{name}}: {{message}}');
+    if (p.history_format === 'custom') {
+        $('#wu_custom_history_format_container').show();
+    } else {
+        $('#wu_custom_history_format_container').hide();
+    }
+
     $('#wu_run_mode').val(p.run_mode || 'after_ai');
 
     updateProfileDropdown();
@@ -794,6 +807,9 @@ async function handleUpdate(abortSignal = null) {
                 return JSON.stringify(processedMessages.map(m => ({ character: m.name, text: m.mes })), null, 2);
             } else if (activeProfile.history_format === 'mkd') {
                 return processedMessages.map(m => `### ${m.name}\n${m.mes}`).join('\n\n---\n\n');
+            } else if (activeProfile.history_format === 'custom') {
+                const formatStr = activeProfile.custom_history_format || "{{name}}: {{message}}";
+                return processedMessages.map(m => formatStr.replace(/{{name}}/gi, m.name).replace(/{{message}}/gi, m.mes)).join('\n\n');
             } else {
                 return processedMessages.map(m => m.name + ': ' + m.mes).join('\n\n');
             }
@@ -1116,6 +1132,15 @@ async function setupUI() {
 
     $(document).off('change', '#wu_history_format').on('change', '#wu_history_format', (e) => {
         updateActiveProfile('history_format', $(e.target).val());
+        if ($(e.target).val() === 'custom') {
+            $('#wu_custom_history_format_container').slideDown(200);
+        } else {
+            $('#wu_custom_history_format_container').slideUp(200);
+        }
+    });
+
+    $(document).off('input', '#wu_custom_history_format').on('input', '#wu_custom_history_format', (e) => {
+        updateActiveProfile('custom_history_format', $(e.target).val());
     });
 
     // profile inputs
@@ -1490,6 +1515,13 @@ async function setupUI() {
             saveSettingsDebounced();
             $('#wu_normal_save_container').toggle(!isChecked);
             $('#wu_advanced_save_container').toggle(isChecked);
+            if (isChecked) {
+                $('#wu_save_text_1').text('Run script after');
+                $('#wu_save_text_2').text('output:');
+            } else {
+                $('#wu_save_text_1').text('Save');
+                $('#wu_save_text_2').text('to variable:');
+            }
         }
     });
 
