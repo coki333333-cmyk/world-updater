@@ -7,7 +7,7 @@ let abortController = null;
 
 const defaultProfile = {
     name: "New Profile",
-    run_mode: 'after_ai',
+    run_mode: 'auto',
     use_internal: false,
     history_format: 'json',
     api_url: 'http://127.0.0.1:5001/v1/chat/completions',
@@ -101,8 +101,6 @@ function loadSettings() {
                     });
                     if (step.advanced_save_enabled === undefined) step.advanced_save_enabled = false;
                     if (step.advanced_save_script === undefined) step.advanced_save_script = "";
-                    
-                    // Migrate and initialize step-level history/filter settings
                     if (step.history_depth === undefined) step.history_depth = profile.history_depth ?? 1;
                     if (step.pre_filter_enabled === undefined) step.pre_filter_enabled = profile.pre_filter_enabled ?? false;
                     if (step.pre_filter_script === undefined) step.pre_filter_script = profile.pre_filter_script ?? "return text;";
@@ -794,12 +792,13 @@ async function handleUpdate(abortSignal = null) {
             
             if (activeProfile.history_format === 'json') {
                 return JSON.stringify(processedMessages.map(m => ({ character: m.name, text: m.mes })), null, 2);
+            } else if (activeProfile.history_format === 'mkd') {
+                return processedMessages.map(m => `### ${m.name}\n${m.mes}`).join('\n\n---\n\n');
             } else {
                 return processedMessages.map(m => m.name + ': ' + m.mes).join('\n\n');
             }
         };
 
-        // 2. Now filter the blocks using the generator
         const sortedBlocks = [...step.blocks].sort((a, b) => (a.order || 128) - (b.order || 128))
             .filter(block => {
                 if (block.history_exclude && block.history_exclude.trim() !== "" && block.history_filter !== 'condition') {
@@ -826,6 +825,9 @@ async function handleUpdate(abortSignal = null) {
                 }
                 return true;
             });
+        if (sortedBlocks.length === 0) { // gemini is god, thx bro
+            continue;
+        }
 
         const codeBlocks = sortedBlocks.filter(b => b.isCode);
         const textBlocks = sortedBlocks.filter(b => !b.isCode);
@@ -945,11 +947,23 @@ async function handleUpdate(abortSignal = null) {
                     let rawText = "";
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder("utf-8");
+                    let buffer = ""; // buffer
                     while (true) {
                         const { done, value } = await reader.read();
-                        if (done) break;
-                        const chunk = decoder.decode(value, { stream: true });
-                        const lines = chunk.split('\n');
+                        if (done) {
+                            if (buffer.trim().startsWith('data: ') && buffer.trim() !== 'data: [DONE]') {
+                                try {
+                                    const parsed = JSON.parse(buffer.trim().substring(6));
+                                    if (parsed.choices?.[0]?.delta?.content) rawText += parsed.choices[0].delta.content;
+                                    else if (parsed.results?.[0]?.text) rawText += parsed.results[0].text;
+                                } catch(e) {}
+                            }
+                            break;
+                        }
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop(); 
+                        
                         for (const line of lines) {
                             if (line.trim().startsWith('data: ')) {
                                 const dataStr = line.trim().substring(6);
@@ -988,7 +1002,7 @@ async function handleUpdate(abortSignal = null) {
                     resultText = filteredText;
                 } catch (err) {
                     console.warn(`[World Updater] Filter script failed in step ${sIndex+1}:`, err);
-                    toastr.warning(`Filter failed in Step ${sIndex+1}, using raw text.`);
+                    toastr.warning(`!FILTER FAILED IN STEP ${sIndex+1}`);
                 }
             }
 
@@ -1155,7 +1169,7 @@ async function setupUI() {
             settings.profiles[settings.active_profile].name = newName.trim();
             refreshUI();
             saveSettingsDebounced();
-            toastr.success("Profile renamed to: " + newName.trim());
+            toastr.success("PROFILE RENAMED TO: " + newName.trim());
         }
     });
 
@@ -1170,7 +1184,7 @@ async function setupUI() {
 
     $(document).off('click', '#wu_del_profile').on('click', '#wu_del_profile', () => {
         if (settings.profiles.length <= 1) {
-            toastr.warning("Cannot delete your only profile.");
+            toastr.warning("!CANT DELETE YOUR ONLY PROFILE");
             return;
         }
         settings.profiles.splice(settings.active_profile, 1);
@@ -1220,7 +1234,7 @@ async function setupUI() {
                 saveSettingsDebounced();
             } catch (err) {
                 console.error("[World Updater] Import failed:", err);
-                toastr.error("Failed to import profile: " + err.message);
+                toastr.error("!FAILED TO IMPORT PROFILE: " + err.message);
             } finally {
                 $('#wu_import_profile_input').val('');
             }
@@ -1235,7 +1249,7 @@ async function setupUI() {
         const varName = varInput.val().trim();
 
         if (!varName) {
-            toastr.info("No variable name to clear.");
+            toastr.info("!NO VARIABLE NAME TO CLEAR");
             return;
         }
 
@@ -1244,12 +1258,12 @@ async function setupUI() {
             delete stContext.chatMetadata.variables[varName];
             await stContext.saveMetadata();
         } else {
-            toastr.info(`Variable "${varName}" does not exist.`);
+            toastr.info(`"${varName}" DOES NOT EXIST`);
             return;
         }
 
         const stepIdx = varInput.attr('data-step');
-        toastr.success(`Variable "${varName}" cleared successfully.`);
+        toastr.success(`"${varName}" CLEARED SUCCESSFULLY`);
     });
 
     // show/hide for prompt blocks
@@ -1314,7 +1328,7 @@ async function setupUI() {
         const step = p.steps[stepIdx];
 
         if (step.enabled) {
-            toastr.warning("Can't remove an enabled step.");
+            toastr.warning("!DISABLE THE STEP FIRST");
             return;
         }
 
@@ -1545,7 +1559,7 @@ async function setupUI() {
                     await stContext.saveMetadata();
                 }
             }
-            toastr.success("Output saved");
+            toastr.success("OUTPUT SAVED");
         }
     });
 
@@ -1571,7 +1585,7 @@ async function setupUI() {
             return;
         }
         await handleUpdate();
-        toastr.success("Chain update finished!");
+        toastr.success("CHAIN UPDATE FINISHED");
     });
 
     // a new refresh button because it was being a pain..
@@ -1587,7 +1601,7 @@ eventSource.on(event_types.MESSAGE_SENT, async () => {
     const settings = extensionSettings[MODULE_NAME];
     const p = settings.profiles[settings.active_profile];
 
-    if (p.run_mode === 'after_user') {
+    if (p.run_mode === 'after_user' || p.run_mode === 'auto') {
         await handleUpdate();
     }
 });
@@ -1597,7 +1611,7 @@ eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, async () => {
     const settings = extensionSettings[MODULE_NAME];
     const p = settings.profiles[settings.active_profile];
 
-    if (p.run_mode === 'after_ai') {
+    if (p.run_mode === 'after_ai' || p.run_mode === 'auto') {
         await handleUpdate();
     }
 });
