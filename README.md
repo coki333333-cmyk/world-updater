@@ -34,6 +34,8 @@ prompt block inclusion can also be controlled:
 
 the prompt block also has an "except" field below it. there, you can write character names (if in a group) separated by commas. so if the prompt block is set to "always" or "after (any) char" but you don’t want it to trigger for a specific character, you can simply add their name there.
 
+!! very important: Javascript prompt blocks **ALWAYS** execute first than the normal block, so if you want to execute script (after AI output) you have to attach it into the next step!
+
 ---
 
 ### Chat history formatting
