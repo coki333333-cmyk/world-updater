@@ -26,7 +26,7 @@ anyways sorry if my explanation is horrible =,)
 another thing I did was adding IDs to blocks. with them, you can grep texts and attach them to another prompt block using the macro:
 ```{{id_a}}``` < the id is 'a'
 
-or using java...: ```const myBlockText = idMap['a'];```
+or using java...: ```const firstalphletter = idMap['a'];```
 oops ...script =p
 
 ## now going back to what matters
