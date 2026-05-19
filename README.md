@@ -1,5 +1,28 @@
 # World Updater (an extension I made out of boredom lol xd)
 
+## a new update ^^
+previously, the extension used (and actually still uses) functions as steps and blocks. but i noticed that creating a bunch of trackers could get a bit hard, because everything would stay very “glued”. like:
+
+step 1 and step 2 = emotion  
+step 3 and step 4 = something else
+
+Because of that, I tried to create a tab mechanic.
+
+The structure is now working like this:
+profile > tabs > steps > prompt block
+
+
+## some issues in the process
+creating this was a bit tricky because api models only accept one request at a time, unless you host more than one ai instance. to solve this, the tab hierarchy works a bit differently from the usual “first to last”.
+
+instead of finishing a tab completely and then moving to the next one, the .js reads the steps and blocks across all tabs.
+
+the .js looks at the first step of every tab first. then, the first step from the tab that has the lowest order number of a non-js block will be triggered first.
+
+(but if both tabs have the same pattern, then obviously tab 1 will run first.)
+
+anyways sorry if my explanation is horrible =,)
+
 this extension is intended to use a local model (or an external API) to automatically update sillytavern variables, useful for tracking character status, locations, feelings, and even creating RPG systems. (it also supports JavaScript!! =D)
 
 !!! **BUT BE AWARE** !!! since this extension allows raw JS execution. you have to be careful when importing or using random JS code.
