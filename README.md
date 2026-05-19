@@ -3,6 +3,7 @@
 this extension is intended to use a local model (or an external API) to automatically update sillytavern variables, useful for tracking character status, locations, feelings, and even creating RPG systems. (it also supports JavaScript!! =D)
 
 !!! **BUT BE AWARE** !!! since this extension allows raw JS execution. you have to be careful when importing or using random JS code.
+PS: currently, 2026/05/19, i added some protections (if you import a JSON file, but do not trust 100% on this, please.)
 
 ## Concept
 
