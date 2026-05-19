@@ -137,6 +137,8 @@ And I’m running qwen2.5-3b-instruct-q4_k_m from Kobold, and it’s fine!
 
 I’ll soon update the README.md to give more instructions!! (i guess) ^^
 
+## More notes:
+the files are minified, but i am always sending the unminified version in .zip, so don't worry, if you want to check the code, you may feel free ^^
 
 final considerations:
 yes im extremely lazy and creating this took me a *little* while and honestly im very lazy to write something else on this readme.md =,) but thats alright
