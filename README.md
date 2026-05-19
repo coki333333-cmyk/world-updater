@@ -23,6 +23,13 @@ the .js looks at the first step of every tab first. then, the first step from th
 
 anyways sorry if my explanation is horrible =,)
 
+another thing I did was adding IDs to blocks. with them, you can grep texts and attach them to another prompt block using the macro:
+```{{id_a}}``` < the id is 'a'
+
+or using java...: ```const myBlockText = block_content['a'];```
+oops ...script =p
+
+## now going back to what matters
 this extension is intended to use a local model (or an external API) to automatically update sillytavern variables, useful for tracking character status, locations, feelings, and even creating RPG systems. (it also supports JavaScript!! =D)
 
 !!! **BUT BE AWARE** !!! since this extension allows raw JS execution. you have to be careful when importing or using random JS code.
@@ -166,8 +173,7 @@ the files are minified, but i am always sending the unminified version in .zip, 
 i also added the function of copying steps, so if you don't understand too much about javascript, you may ask help or even use AI! 
 
 ### Example below!!
----
-
+```
 ======================Step 1======================
 
 
@@ -276,7 +282,7 @@ Save to variable:
 
 
 ======================Step 1======================
-
+```
 
 ---
 
