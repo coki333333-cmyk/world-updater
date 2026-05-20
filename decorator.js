@@ -1,1 +1,103 @@
-function e(e,t){var n=this,l=document.createElement("div"),r=document.createElement("pre");l.appendChild(r);var a=document.createElement("label");return l.appendChild(a),e.parentNode.replaceChild(l,e),a.appendChild(e),l.className="ldt "+e.className,e.className="",e.spellcheck=!1,e.wrap="off",n.input=e,n.output=r,n.update=function(){var n=e.value;if(n){!function(e,t,n){var l,r,a,o=t.childNodes,c=n.tokenize(e);for(l=0;l<c.length&&l<o.length&&c[l]===o[l].textContent;l++);for(;c.length<o.length;)t.removeChild(o[l]);for(r=c.length-1,a=o.length-1;l<a&&c[r]===o[a].textContent;r--,a--);for(;l<=a;l++)o[l].className=n.identify(c[l]),o[l].textContent=o[l].innerText=c[l];for(var d=o[l]||null;l<=r;l++){var i=document.createElement("span");i.className=n.identify(c[l]),i.textContent=i.innerText=c[l],t.insertBefore(i,d)}}(n,r,t);for(var l=n.split("\n"),a=0,o=0;o<l.length;o++){for(var c=0,d=-1;(d=l[o].indexOf("\t",d+1))>-1;)c+=7-(c+d)%8;var i;a=a>(i=l[o].length+c)?a:i}e.cols=a+1,e.rows=l.length+2}else r.innerHTML="",e.cols=e.rows=1},e.addEventListener?(e.addEventListener("input",n.update,!1),e.addEventListener("scroll",function(){r.scrollTop=e.scrollTop,r.scrollLeft=e.scrollLeft},!1)):e.attachEvent("onpropertychange",function(e){"value"===e.propertyName.toLowerCase()&&n.update()}),n.update(),n}
+/* TextareaDecorator.js
+ * written by Colin Kuebler 2012
+ * Part of LDT, dual licensed under GPLv3 and MIT
+ * Builds and maintains a styled output layer under a textarea input layer
+ */
+
+function TextareaDecorator( textarea, parser ){
+	/* INIT */
+	var api = this;
+
+	// construct editor DOM
+	var parent = document.createElement("div");
+	var output = document.createElement("pre");
+	parent.appendChild(output);
+	var label = document.createElement("label");
+	parent.appendChild(label);
+	// replace the textarea with RTA DOM and reattach on label
+	textarea.parentNode.replaceChild( parent, textarea );
+	label.appendChild(textarea);
+	// transfer the CSS styles to our editor
+	parent.className = 'ldt ' + textarea.className;
+	textarea.className = '';
+	// turn off built-in spellchecking in firefox
+	textarea.spellcheck = false;
+	// turn off word wrap
+	textarea.wrap = "off";
+
+	// coloring algorithm
+	var color = function( input, output, parser ){
+		var oldTokens = output.childNodes;
+		var newTokens = parser.tokenize(input);
+		var firstDiff, lastDiffNew, lastDiffOld;
+		// find the first difference
+		for( firstDiff = 0; firstDiff < newTokens.length && firstDiff < oldTokens.length; firstDiff++ )
+			if( newTokens[firstDiff] !== oldTokens[firstDiff].textContent ) break;
+		// trim the length of output nodes to the size of the input
+		while( newTokens.length < oldTokens.length )
+			output.removeChild(oldTokens[firstDiff]);
+		// find the last difference
+		for( lastDiffNew = newTokens.length-1, lastDiffOld = oldTokens.length-1; firstDiff < lastDiffOld; lastDiffNew--, lastDiffOld-- )
+			if( newTokens[lastDiffNew] !== oldTokens[lastDiffOld].textContent ) break;
+		// update modified spans
+		for( ; firstDiff <= lastDiffOld; firstDiff++ ){
+			oldTokens[firstDiff].className = parser.identify(newTokens[firstDiff]);
+			oldTokens[firstDiff].textContent = oldTokens[firstDiff].innerText = newTokens[firstDiff];
+		}
+		// add in modified spans
+		for( var insertionPt = oldTokens[firstDiff] || null; firstDiff <= lastDiffNew; firstDiff++ ){
+			var span = document.createElement("span");
+			span.className = parser.identify(newTokens[firstDiff]);
+			span.textContent = span.innerText = newTokens[firstDiff];
+			output.insertBefore( span, insertionPt );
+		}
+	};
+
+	api.input = textarea;
+	api.output = output;
+	api.update = function(){
+		var input = textarea.value;
+		if( input ){
+			color( input, output, parser );
+			// determine the best size for the textarea
+			var lines = input.split('\n');
+			// find the number of columns
+			var maxlen = 0, curlen;
+			for( var i = 0; i < lines.length; i++ ){
+				// calculate the width of each tab
+				var tabLength = 0, offset = -1;
+				while( (offset = lines[i].indexOf( '\t', offset+1 )) > -1 ){
+					tabLength += 7 - (tabLength + offset) % 8;
+				}
+				var curlen = lines[i].length + tabLength;
+				// store the greatest line length thus far
+				maxlen = maxlen > curlen ? maxlen : curlen;
+			}
+			textarea.cols = maxlen + 1;
+			textarea.rows = lines.length + 2;
+		} else {
+			// clear the display
+			output.innerHTML = '';
+			// reset textarea rows/cols
+			textarea.cols = textarea.rows = 1;
+		}
+	};
+
+	// detect all changes to the textarea,
+	// including keyboard input, cut/copy/paste, drag & drop, etc
+	// detect all changes to the textarea,
+	// including keyboard input, cut/copy/paste, drag & drop, etc
+	if( textarea.addEventListener ){
+		textarea.addEventListener( "input", api.update, false );
+		textarea.addEventListener( "scroll", function() {
+			output.scrollTop = textarea.scrollTop;
+			output.scrollLeft = textarea.scrollLeft;
+		}, false );
+	} else {
+		textarea.attachEvent( "onpropertychange", function(e){
+			if( e.propertyName.toLowerCase() === 'value' ) api.update();
+		});
+	}
+	api.update();
+	return api;
+};
