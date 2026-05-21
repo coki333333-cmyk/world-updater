@@ -67,6 +67,35 @@ the prompt block also has an "except" field below it. there, you can write chara
 
 !! very important: Javascript prompt blocks **ALWAYS** execute first than the normal block, so if you want to execute script (after AI output) you have to attach it into the next step!
 
+you can also use ```await require()``` in javascript blocks to access contents of other blocks!
+
+example:
+
+// block with id 'test' (trigger: never)
+```toastr.warning("boing");```
+
+// a js block
+```await require('test');```
+
+or
+
+// block with id 'moods' (trigger: never)
+```
+const m_ls = ["happy", "playful", "excited", "affectionate", "angry", "annoyed", "jealous", "sad", 
+"lonely", "ashamed", "tired", "nervous", "shy", "flustered", "scared", "calm",  "bored", "curious", "serious"];
+
+return m_ls;
+```
+// a js block:
+```const m_ls = await require('moods');```
+
+or you can even use:
+```
+const a = await require('moods');
+toastr.info(a[1]);
+```
+(the output would be playful)
+
 ---
 
 ### Chat history formatting
