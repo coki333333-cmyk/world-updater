@@ -1,0 +1,85 @@
+{
+    "name": "simplemood",
+    "run_mode": "auto",
+    "use_internal": false,
+    "history_format": "json",
+    "custom_history_format": "{{name}}: {{message}}",
+    "api_url": "http://127.0.0.1:5001/v1/chat/completions",
+    "api_key": "",
+    "model": "",
+    "temperature": "0",
+    "frequency_penalty": 0,
+    "top_p": 1,
+    "repeat_penalty": 1.1,
+    "presence_penalty": 0,
+    "top_k": 40,
+    "min_p": 0.05,
+    "max_tokens": "30",
+    "tabs": [
+        {
+            "steps": [
+                {
+                    "name": "simple mood tracker",
+                    "variable_name": "",
+                    "history_depth": 1,
+                    "pre_filter_enabled": false,
+                    "pre_filter_script": "return text;",
+                    "enabled": true,
+                    "order": 128,
+                    "filter_enabled": true,
+                    "advanced_save_enabled": true,
+                    "filter_script": "return text.replace(/[^0-9]/g, '').trim();",
+                    "advanced_save_script": "const moodList = [\n  \"happy\", \"playful\", \"excited\", \"affectionate\", \"angry\", \n  \"annoyed\", \"jealous\", \"sad\", \"lonely\", \"ashamed\", \n  \"tired\", \"nervous\", \"shy\", \"flustered\", \"scared\", \n  \"calm\", \"bored\", \"curious\", \"serious\"\n];\n\nconst charName = context.name2 || \"The character\";\nconst index = parseInt(resultText.trim());\n\n// 3. Check if the AI gave us a valid number from the list\nif (!isNaN(index) && moodList[index]) {\n    const detectedMood = moodList[index];\n    toastr.info(`${charName} is currently feeling ${detectedMood}`);\n}",
+                    "expected_enabled": true,
+                    "expected_script": "const clean = text.trim();\nreturn !isNaN(clean) && parseInt(clean) >= 0 && parseInt(clean) <= 18;\n// if you ever want to place more moods, just change the '18' to the amount of moods\n\n// or if it's being a nuisance, disable the expectation option! =D",
+                    "correction_enabled": true,
+                    "max_attempts": 3,
+                    "correction_role": "user",
+                    "correction_order": 1,
+                    "correction_content": "The message failed...\nPlease write only the number of the current mood.\n\nYou wrote: {{failed_output}}",
+                    "blocks": [
+                        {
+                            "role": "system",
+                            "id": "",
+                            "content": "Based on {{char}}'s last message, you have to tell their current mood using the numbers. Write only **one** mood.",
+                            "order": 2,
+                            "isCode": false,
+                            "history_filter": "char",
+                            "history_filter_name": "",
+                            "history_exclude": "",
+                            "run_condition_js": "return true;",
+                            "bg_color": ""
+                        },
+                        {
+                            "role": "system",
+                            "id": "",
+                            "content": "list of mood:\n\n\n0 = happy\n1 = playful\n2 = excited\n3 = affectionate\n4 = angry\n5 = annoyed\n6 = jealous\n7 = sad\n8 = lonely\n9 = ashamed\n10 = tired\n11 = nervous\n12 = shy\n13 = flustered\n14 = scared\n15 = calm\n16 = bored\n17 = curious\n18 = serious",
+                            "order": 3,
+                            "isCode": false,
+                            "history_filter": "char",
+                            "history_filter_name": "",
+                            "history_exclude": "",
+                            "run_condition_js": "return true;",
+                            "bg_color": ""
+                        },
+                        {
+                            "role": "user",
+                            "content": "{{chat_history}}",
+                            "order": 1,
+                            "isCode": false,
+                            "history_filter": "char",
+                            "history_filter_name": "",
+                            "bg_color": "",
+                            "history_exclude": "",
+                            "run_condition_js": "return true;"
+                        }
+                    ],
+                    "last_output": ""
+                }
+            ],
+            "name": "1"
+        }
+    ],
+    "notes": "this is a simple mood tracker =)",
+    "custom_tools": []
+}
