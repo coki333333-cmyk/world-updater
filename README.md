@@ -37,7 +37,7 @@ PS: currently, 2026/05/19, i added some protections (if you import a JSON file, 
 
 ## Concept
 
-what i wanted to do was create a way where i, the user, don’t need to manually update the world info. then i thought it would be a great idea to simply use a local and online api — online api for rp, and a local model for the script!
+what i wanted to do was create a way where i, the user, don’t need to manually update the world info. then i thought it would be a great idea to simply use online api for rp, and a local model for the script!
 
 the extension uses configurable profiles. each profile can have steps, and each step can have multiple prompt blocks.
 
