@@ -2,4 +2,6 @@
 
 (the documentation's still going to be updated! please be patient)
 
-remember, the unminified version is [here!](https://github.com/coki333333-cmyk/world-updater/releases/tag/a "yeah! right there! just click already!")!
+remember, the unminified version is [here!](https://github.com/coki333333-cmyk/world-updater/releases/tag/a "yeah! right there! just click already!")
+
+and, you may also check for my other new work [(tools)](https://github.com/coki333333-cmyk/world-updater-examples), yourself can code and create extensions to my extension!
